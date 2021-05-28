@@ -168,8 +168,6 @@ control my_ingress(inout headers_t hdr,
 
         else
             send_to_controller();
-
-        debug.apply();
     }
 }
 
