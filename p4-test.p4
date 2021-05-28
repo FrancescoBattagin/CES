@@ -3,6 +3,7 @@
 
 const bit<16> TYPE_TUNNEL = 0x1212;
 const bit<16> TYPE_IPV4 = 0x800;
+#define CONTROLLER_PORT 1
 
 
 /***HEADERS***/
@@ -105,6 +106,7 @@ control my_verify_checksum(inout headers_t hdr,
 control my_ingress(inout headers_t hdr,
                   inout metadata_t meta,
                   inout standard_metadata_t standard_metadata) {
+    
     action drop() {
         mark_to_drop(standard_metadata);
     }
@@ -116,6 +118,11 @@ control my_ingress(inout headers_t hdr,
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
     
+    action send_to_controller(){
+        standard_metadata.egress_spec = CONTROLLER_PORT;
+    }
+
+
     table ipv4_lpm {
         key = {
             hdr.ipv4.dstAddr: lpm;
@@ -123,10 +130,11 @@ control my_ingress(inout headers_t hdr,
         actions = {
             ipv4_forward;
             drop;
+            send_to_controller;
             NoAction;
         }
         size = 1024;
-        default_action = drop();
+        default_action = send_to_controller();
     }
     
     action tunnel_forward(egressSpec_t port) {
@@ -140,9 +148,11 @@ control my_ingress(inout headers_t hdr,
         actions = {
             tunnel_forward;
             drop;
+            send_to_controller;
+            NoAction;
         }
         size = 1024;
-        default_action = drop();
+        default_action = send_to_controller();
     }
 
     apply {
@@ -151,10 +161,15 @@ control my_ingress(inout headers_t hdr,
             ipv4_lpm.apply();
         }
 
-        if (hdr.tunnel.isValid()) {
+        else if (hdr.tunnel.isValid()) {
             // process tunneled packets
             tunnel_exact.apply();
         }
+
+        else
+            send_to_controller();
+
+        debug.apply();
     }
 }
 
