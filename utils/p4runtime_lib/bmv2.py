@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 from switch import SwitchConnection
-from p4.tmp import p4config_pb2
+#from p4.tmp import p4config_pb2
 
 
 def buildDeviceConfig(bmv2_json_file_path=None):
