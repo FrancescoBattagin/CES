@@ -3,7 +3,7 @@ import grpc
 import os, sys
 from time import sleep
 import p4runtime_sh.shell as sh
-from scapy.all import *
+#from scapy.all import *
 
 # Import P4Runtime lib from parent utils dir
 # Probably there's a better way of doing this.
@@ -43,17 +43,10 @@ def checkPolicies(packet):
 
 
 def addEntries(ip_src, ip_dst):
-    table_entry = p4info_helper.buildTableEntry(
-        table_name="my_ingress.ipv4_lpm",
-        match_fields={
-            #FIX
-            "hdr.ipv4_t.srcAddr": ip_src,
-            "hdr.ipv4_t.dstAddr": ip_dst #ADD PORT?,
-        },
-        action_name="my_ingress.ipv4_forward",
-        action_params={}
-        )
-    ces.WriteTableEntry(table_entry)
+    te = sh.TableEntry("my_ingress.ipv4_lpm")(action="my_ingress.ipv4_forward")
+    te.match["hdr.ipv4_t.srcAddr"] = ip_src
+    te.match["hdr.ipv4_t.dstAddr"] = ip_dst
+    te.insert()
     print("Installed leader table entry rule on {}".format(ces.name))
 
 
@@ -69,7 +62,7 @@ ces = bmv2.Bmv2SwitchConnection(
 ces.MasterArbitrationUpdate()
 
 connection = sh.client
-#print(connection)
+print(connection)
 while True:
     packet = None
     print("Waiting for receive something")
