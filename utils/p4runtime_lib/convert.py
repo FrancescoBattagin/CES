@@ -116,4 +116,4 @@ if __name__ == '__main__':
         enc_num = encodeNum(num, 8)
         raise Exception("expected exception")
     except Exception as e:
-        print e
+        print(e)
