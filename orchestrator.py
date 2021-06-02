@@ -85,7 +85,6 @@ ces = bmv2.Bmv2SwitchConnection(
 ces.MasterArbitrationUpdate()
 s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
 
-print(connection)
 while True:
     packet = None
     print("Waiting for receive something")
