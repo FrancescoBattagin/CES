@@ -2,7 +2,6 @@
 import grpc
 import os, sys
 from time import sleep
-import p4runtime_sh.shell as sh
 import socket
 
 # Import P4Runtime lib from parent utils dir
@@ -16,7 +15,7 @@ from switch import ShutdownAllSwitchConnections
 import helper
 
 def checkPolicies(packet):
-    #read from db/txt file
+    #TODO db query, now managed as file.txt read
     policies = []
     with open("policiesDB.txt", 'r') as f:
         line = f.readline()
@@ -25,27 +24,33 @@ def checkPolicies(packet):
             line = f.readline()
 
     found = False
-    src_dst = ipv4_head()
+    src_dst = ipv4_head(packet)
     ip_src= src_dst[0]
     ip_dst= src_dst[1]
 
     for policy in policies:
-        #TODO: check device_ip, port and destination of packet inside policies
+        #TODO managed different types of policies -> see when they'll be defined
         if ip_src in policy and ip_dst in policy: #&& desired info are present
             found = True
             addEntries(ip_src, ip_dst)          
             break
     if not found:
-        #drop
+        #packet drop
         packet = None
         print("packet dropped")
 
 
 def addEntries(ip_src, ip_dst):
-    te = sh.TableEntry("my_ingress.ipv4_lpm")(action="my_ingress.ipv4_forward")
-    te.match["hdr.ipv4_t.srcAddr"] = ip_src
-    te.match["hdr.ipv4_t.dstAddr"] = ip_dst
-    te.insert()
+    te = p4info_helper.buildTableEntry(
+        table_name="my_ingress.ipv4_lpm",
+        match_fields={
+            "hdr.ipv4_t.srcAddr": ip_src,
+            "hdr.ipv4_t.dstAddr": ip_dst
+        },
+        action_name="my_ingress.ipv4_forward",
+        action_params={}
+    )
+    ces.WriteTableEntry(te)
     print("Installed leader table entry rule on {}".format(ces.name))
 
 
@@ -69,7 +74,6 @@ def ipv4_head(raw_data):
 
 
 
-
 p4info_file_path = "p4-test.p4info.txt"
 p4info_helper = helper.P4InfoHelper(p4info_file_path)
 ces = bmv2.Bmv2SwitchConnection(
@@ -81,7 +85,6 @@ ces = bmv2.Bmv2SwitchConnection(
 ces.MasterArbitrationUpdate()
 s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
 
-connection = sh.client
 print(connection)
 while True:
     packet = None
@@ -91,6 +94,3 @@ while True:
     if packet != None:
         print("Packet received!:" + str(packet))
         checkPolicies(packet)
-
-#this code won't be accessible, but for the sake of completeness
-sh.teardown()
