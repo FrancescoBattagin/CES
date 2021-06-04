@@ -83,13 +83,12 @@ ces = bmv2.Bmv2SwitchConnection(
     proto_dump_file='logs/ces-p4runtime.txt')
 
 ces.MasterArbitrationUpdate()
-s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
 
 while True:
     packet = None
     print("Waiting for receive something")
-    packet = s.recvfrom(65565) #max buff length
+    packet = sniff(count = 1)
     
     if packet != None:
-        print("Packet received!:" + str(packet))
+        print("Packet received!: " + {packet[0][1].src} + "==>" + {packet[0][1].dst})
         checkPolicies(packet)
