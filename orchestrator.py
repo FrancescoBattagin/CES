@@ -3,6 +3,7 @@ import grpc
 import os, sys
 from time import sleep
 import socket
+from scapy.all import *
 
 # Import P4Runtime lib from parent utils dir
 # Probably there's a better way of doing this.
