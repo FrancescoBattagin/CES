@@ -29,7 +29,7 @@ def checkPolicies(packet):
     
     for policy in policies:
         #TODO managed different types of policies -> see when they'll be defined
-        if ip_src in policy and ip_dst in policy: #&& desired info are present
+        if packet[0].src in policy and packet[0].dst in policy: #&& desired info are present
             found = True
             addEntries(packet[0].src, packet[0].dst)          
             break
