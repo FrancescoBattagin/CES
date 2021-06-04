@@ -92,5 +92,5 @@ while True:
     packet = sniff(count = 1)
     
     if packet != None:
-        print("Packet received!: " + packet.src + "==>" + packet.dst)
+        print("Packet received!: " + packet)
         checkPolicies(packet)
