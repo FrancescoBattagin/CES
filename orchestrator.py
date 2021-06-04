@@ -19,6 +19,7 @@ def checkPolicies(packet):
     #TODO db query, now managed as file.txt read
     policies = []
     with open("policiesDB.txt", 'r') as f:
+        print("policiesDB.txt opened")
         line = f.readline()
         while line:
             policies.append(line.split(" "))
@@ -91,5 +92,5 @@ while True:
     packet = sniff(count = 1)
     
     if packet != None:
-        print("Packet received!: " + {packet[0][1].src} + "==>" + {packet[0][1].dst})
+        print("Packet received!: " + packet.src + "==>" + packet.dst)
         checkPolicies(packet)
