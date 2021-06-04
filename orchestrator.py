@@ -92,5 +92,5 @@ while True:
     packet = sniff(count = 1)
     
     if packet != None:
-        print("Packet received!: " + packet[0])
+        print("Packet received!: " + packet[IP].srcAddr + "-->" + packet[IP].dstAddr)
         checkPolicies(packet)
