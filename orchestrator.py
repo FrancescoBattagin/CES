@@ -26,15 +26,12 @@ def checkPolicies(packet):
             line = f.readline()
 
     found = False
-    src_dst = ipv4_head(packet)
-    ip_src= src_dst[0]
-    ip_dst= src_dst[1]
-
+    
     for policy in policies:
         #TODO managed different types of policies -> see when they'll be defined
         if ip_src in policy and ip_dst in policy: #&& desired info are present
             found = True
-            addEntries(ip_src, ip_dst)          
+            addEntries(packet[IP].src, packet[IP].dst)          
             break
     if not found:
         #packet drop
@@ -92,5 +89,5 @@ while True:
     packet = sniff(count = 1)
     
     if packet != None:
-        print("Packet received!: " + packet[IP].srcAddr + "-->" + packet[IP].dstAddr)
+        print("Packet received!: " + packet[IP].src + "-->" + packet[IP].dst)
         checkPolicies(packet)
