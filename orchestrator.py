@@ -31,7 +31,7 @@ def checkPolicies(packet):
         #TODO managed different types of policies -> see when they'll be defined
         if ip_src in policy and ip_dst in policy: #&& desired info are present
             found = True
-            addEntries(packet[IP].src, packet[IP].dst)          
+            addEntries(packet[0].src, packet[0].dst)          
             break
     if not found:
         #packet drop
@@ -89,5 +89,5 @@ while True:
     packet = sniff(count = 1)
     
     if packet != None:
-        print("Packet received!: " + packet[IP].src + "-->" + packet[IP].dst)
+        print("Packet received!: " + packet[0].src + "-->" + packet[0].dst)
         checkPolicies(packet)
