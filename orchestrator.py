@@ -9,7 +9,11 @@ from scapy.all import *
 # Probably there's a better way of doing this.
 sys.path.append(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 'utils/p4runtime_lib'))
+                 '../../utils/'))
+import p4runtime_lib.bmv2
+from p4runtime_lib.switch import ShutdownAllSwitchConnections
+import p4runtime_lib.helper
+
 import bmv2
 from error_utils import printGrpcError
 from switch import ShutdownAllSwitchConnections
@@ -29,9 +33,9 @@ def checkPolicies(packet):
     
     for policy in policies:
         #TODO managed different types of policies -> see when they'll be defined
-        if packet[0].src in policy and packet[0].dst in policy: #&& desired info are present
+        if packet[0][IP].src in policy and packet[0][IP].dst in policy: #&& desired info are present
             found = True
-            addEntries(packet[0].src, packet[0].dst)          
+            addEntries(packet[0][IP].src, packet[0][IP].dst)          
             break
     if not found:
         #packet drop
@@ -50,27 +54,7 @@ def addEntries(ip_src, ip_dst):
         action_params={}
     )
     ces.WriteTableEntry(te)
-    print("Installed leader table entry rule on {}".format(ces.name))
-
-
-def ethernet_head(raw_data):
-    dest, src, prototype = struct.unpack('! 6s 6s H', raw_data[:14])
-    dest_mac = get_mac_addr(dest)
-    src_mac = get_mac_addr(src)
-    proto = socket.htons(prototype)
-    data = raw_data[14:]
-    return dest_mac, src_mac, proto, data 
-
-
-def ipv4_head(raw_data):
-    version_header_length = raw_data[0]
-    version = version_header_length >> 4
-    header_length = (version_header_length & 15) * 4
-    ttl, proto, src, target = struct.unpack('! 8x B B 2x 4s 4s', raw_data[:20])
-    data = raw_data[header_length:]
-    src_dst = [src, target]
-    return src_dst
-
+    print("Installed leader table entry rule on ces")
 
 
 p4info_file_path = "p4-test.p4info.txt"
@@ -89,5 +73,5 @@ while True:
     packet = sniff(count = 1)
     
     if packet != None:
-        print("Packet received!: " + packet[0].src + "-->" + packet[0].dst)
+        print("Packet received!: " + packet[0][IP].src + "-->" + packet[0][IP].dst)
         checkPolicies(packet)
