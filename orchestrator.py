@@ -10,10 +10,6 @@ from scapy.all import *
 sys.path.append(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
                  '../../utils/'))
-import p4runtime_lib.bmv2
-from p4runtime_lib.switch import ShutdownAllSwitchConnections
-import p4runtime_lib.helper
-
 import bmv2
 from error_utils import printGrpcError
 from switch import ShutdownAllSwitchConnections
