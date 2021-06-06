@@ -9,7 +9,7 @@ from scapy.all import *
 # Probably there's a better way of doing this.
 sys.path.append(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 '../../utils/'))
+                 'utils/p4runtime_lib'))
 import bmv2
 from error_utils import printGrpcError
 from switch import ShutdownAllSwitchConnections
