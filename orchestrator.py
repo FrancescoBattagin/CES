@@ -66,7 +66,7 @@ ces.MasterArbitrationUpdate()
 while True:
     packet = None
     print("Waiting for receive something")
-    packet = sniff(count = 1, prn=lambda x:x.sprintf("{IP:%IP.src%:%TCP.sport% > %IP.dst%TCO.dport%\n}{Raw:%Raw.load%\n}"))
+    packet = sniff(count = 1, prn=lambda x:x.sprintf("{IP:%IP.src%:%TCP.sport% > %IP.dst%TCP.dport%\n}{Raw:%Raw.load%\n}"))
     
     if packet != None:
         print("Packet received!: " + packet[0][IP].src + "-->" + packet[0][IP].dst)
