@@ -2,8 +2,10 @@
 import grpc
 import os, sys
 from time import sleep
-import socket
 from scapy.all import *
+from mysql.connector import connect, Error
+from getpass import getpass
+
 
 # Import P4Runtime lib from parent utils dir
 # Probably there's a better way of doing this.
@@ -24,20 +26,40 @@ def checkPolicies(packet):
         while line:
             policies.append(line.split(" "))
             line = f.readline()
+    lookForPolicy(policies, packet)
 
-    found = False
+
+def checkPoliciesDB(packet):
+    policies = []
+    try:
+        with connect(
+            host="localhost",
+            user=input("Enter your username: "),
+            password=input("Enter your password: "),
+            database="Policydb"
+        ) as connection:
+            print(connection)
+            prepared_statement = "SELECT * FROM policies"
+            with connection.cursor() as cursor:
+                cursor.execute(prepared_statement)             
+                policies = cursor.fetchall()
+            print(policies)
+            lookForPolicy(policies, packet)
+
+    except Error as e:
+        print(e)
+
     
+def lookForPolicy(policyList, packet):
     for policy in policies:
         #TODO managed different types of policies -> see when they'll be defined
         if packet[0][IP].src in policy and packet[0][IP].dst in policy: #&& desired info are present
-            found = True
-            addEntries(packet[0][IP].src, packet[0][IP].dst)          
-            break
+        addEntries(packet[0][IP].src, packet[0][IP].dst)          
+        break
     if not found:
         #packet drop
         packet = None
         print("packet dropped")
-
 
 def addEntries(ip_src, ip_dst):
     te = p4info_helper.buildTableEntry(
@@ -51,6 +73,7 @@ def addEntries(ip_src, ip_dst):
     )
     ces.WriteTableEntry(te)
     print("Installed leader table entry rule on ces")
+
 
 
 p4info_file_path = "p4-test.p4info.txt"
@@ -70,10 +93,10 @@ while True:
     time.sleep(0.2)
     packet = sniff(count = 1)
     
-    if packet != None:
-        if str(packet[0][ICMP].type) == "8": 
-            print("PING from " + packet[0][IP].src)
-        else:
-            print("Packet received!: " + packet[0][IP].src + "-->" + packet[0][IP].dst)
-            print(packet)
-            checkPolicies(packet)
+    # if packet != None:
+    #     if str(packet[0][ICMP].type) == "8": 
+    #         print("PING from " + packet[0][IP].src)
+    #     else:
+    print("Packet received!: " + packet[0][IP].src + "-->" + packet[0][IP].dst)
+    print(packet)
+    checkPolicies(packet)
