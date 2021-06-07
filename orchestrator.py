@@ -69,10 +69,9 @@ while True:
     packet = sniff(count = 1)
     
     if packet != None:
-        print("Packet received!: " + packet[0][IP].src + "-->" + packet[0][IP].dst)
-        print(packet)
-        
         if str(pkt.getlayer(ICMP).type) == "8": 
             print("PING: " + pkt[IP].src + " > " + pkt[IP].dst)
         else:
+            print("Packet received!: " + packet[0][IP].src + "-->" + packet[0][IP].dst)
+            print(packet)
             checkPolicies(packet)
