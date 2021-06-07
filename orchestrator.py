@@ -71,4 +71,8 @@ while True:
     if packet != None:
         print("Packet received!: " + packet[0][IP].src + "-->" + packet[0][IP].dst)
         print(packet)
-        checkPolicies(packet)
+        
+        if str(pkt.getlayer(ICMP).type) == "8": 
+            print("PING: " + pkt[IP].src + " > " + pkt[IP].dst)
+        else:
+            checkPolicies(packet)
