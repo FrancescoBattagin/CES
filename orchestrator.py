@@ -66,6 +66,8 @@ ces.MasterArbitrationUpdate()
 while True:
     packet = None
     print("Waiting for receive something")
+    
+    time.sleep(0.2)
     packet = sniff(count = 1)
     
     if packet != None:
