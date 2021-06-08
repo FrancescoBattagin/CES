@@ -86,7 +86,14 @@ ces = bmv2.Bmv2SwitchConnection(
     device_id= 0,
     proto_dump_file='logs/ces-p4runtime.txt')
 
-ces.MasterArbitrationUpdate()
+worked = False
+while (not worked):
+    try:
+        ces.MasterArbitrationUpdate()
+        worked = True
+    except Error as e:
+        print("DIDN'T WORKED")
+
 
 while True:
     packet = None
