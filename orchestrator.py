@@ -91,6 +91,7 @@ while (not worked):
     try:
         ces.MasterArbitrationUpdate()
         worked = True
+        print("WORKED")
     except Error as e:
         print("DIDN'T WORKED")
 
@@ -100,12 +101,15 @@ while True:
     print("Waiting for receive something")
     
     time.sleep(0.2)
-    packet = sniff(count = 1)
+    try:
+        packet = sniff(count = 1)
     
-    # if packet != None:
-    #     if str(packet[0][ICMP].type) == "8": 
-    #         print("PING from " + packet[0][IP].src)
-    #     else:
-    print("Packet received!: " + packet[0][IP].src + "-->" + packet[0][IP].dst)
-    print(packet)
-    checkPolicies(packet)
+        # if packet != None:
+        #     if str(packet[0][ICMP].type) == "8": 
+        #         print("PING from " + packet[0][IP].src)
+        #     else:
+        print("Packet received!: " + packet[0][IP].src + "-->" + packet[0][IP].dst)
+        print(packet)
+        checkPolicies(packet)
+    except Error as e:
+        print("NO")
