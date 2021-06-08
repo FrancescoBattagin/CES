@@ -51,11 +51,13 @@ def checkPoliciesDB(packet):
 
     
 def lookForPolicy(policyList, packet):
+    found = False
     for policy in policies:
         #TODO managed different types of policies -> see when they'll be defined
         if packet[0][IP].src in policy and packet[0][IP].dst in policy: #&& desired info are present
-        addEntries(packet[0][IP].src, packet[0][IP].dst)          
-        break
+            addEntries(packet[0][IP].src, packet[0][IP].dst)
+            found = True          
+            break
     if not found:
         #packet drop
         packet = None
