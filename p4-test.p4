@@ -3,19 +3,19 @@
 
 const bit<16> TYPE_TUNNEL = 0x1212;
 const bit<16> TYPE_IPV4 = 0x800;
-#define CONTROLLER_PORT 1
+#define CONTROLLER_PORT 3
 
 
 /***HEADERS***/
 
 typedef bit<9>  egressSpec_t;
-typedef bit<48> macAddr_t;
 typedef bit<32> ip4Addr_t;
+typedef bit<48> EthernetAddress;
 
 header ethernet_t {
-    macAddr_t dstAddr;
-    macAddr_t srcAddr;
-    bit<16>   etherType;
+    EthernetAddress dstAddr;
+    EthernetAddress srcAddr;
+    bit<16> etherType;
 }
 
 header tunnel_t {
@@ -37,6 +37,7 @@ header ipv4_t {
     ip4Addr_t srcAddr;
     ip4Addr_t dstAddr;
 }
+
 
 struct metadata_t {
 
@@ -106,18 +107,22 @@ control my_verify_checksum(inout headers_t hdr,
 control my_ingress(inout headers_t hdr,
                   inout metadata_t meta,
                   inout standard_metadata_t standard_metadata) {
-    
+
     action drop() {
         mark_to_drop(standard_metadata);
     }
-    
-    action ipv4_forward(macAddr_t dstAddr, egressSpec_t port) {
-        standard_metadata.egress_spec = port;
+
+    action ethernet_forward(EthernetAddress dstAddr){
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = dstAddr;
+    }
+
+    action ipv4_forward(EthernetAddress dstAddr, egressSpec_t port) {
+        standard_metadata.egress_spec = port;
+        ethernet_forward(dstAddr);
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
-    
+
     action send_to_controller(){
         standard_metadata.egress_spec = CONTROLLER_PORT;
     }
@@ -136,7 +141,7 @@ control my_ingress(inout headers_t hdr,
         size = 1024;
         default_action = send_to_controller();
     }
-    
+
     action tunnel_forward(egressSpec_t port) {
         standard_metadata.egress_spec = port;
     }
