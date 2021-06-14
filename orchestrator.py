@@ -106,21 +106,16 @@ def main(p4info_file_path, bmv2_file_path):
         packet = None
         print("Waiting for receive something")
 
-        packet = sniff(count = 1)
+        packets = sniff(count = 1)
 
-        if packet != None:
-            print(packet)
+        if packets != None:
+            print(packets)
 
-            fields = []
-            for field in packet[0]
-                fields.append(field)
-
-            #handle better recognition of packet type
-            if "ICMP" in fields and str(packet[0][ICMP].type) == "8":
-                print("PING from " + packet[0][IP].src)
-            elif "IP" in fields:
-                print("Packet received!: " + packet[0][IP].src + "-->" + packet[0][IP].dst)
-            checkPolicies(packet, p4info_helper, s1)
+            if ICMP in packets[0] and str(packets[0][ICMP].type) == "8":
+                print("PING from " + packets[0][IP].src)
+            elif IP in packets[0]:
+                print("Packet received!: " + packets[0][IP].src + "-->" + packets[0][IP].dst)
+            checkPolicies(packets, p4info_helper, s1)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='P4Runtime Controller')
