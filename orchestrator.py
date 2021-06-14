@@ -4,12 +4,12 @@ import grpc
 import os
 import sys
 from time import sleep
-from scapy.all import *
+#from scapy.all import *
 # Import P4Runtime lib from parent utils dir
 # Probably there's a better way of doing this.
 sys.path.append(
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 '../../utils/'))
+                 'utils/'))
 import p4runtime_lib.bmv2
 from p4runtime_lib.switch import ShutdownAllSwitchConnections
 import p4runtime_lib.helper
@@ -110,10 +110,15 @@ def main(p4info_file_path, bmv2_file_path):
 
         if packet != None:
             print(packet)
+
+            fields = []
+            for field in packet[0]
+                fields.append(field)
+
             #handle better recognition of packet type
-            if packet[0][ICMP] != None and str(packet[0][ICMP].type) == "8":
+            if "ICMP" in fields and str(packet[0][ICMP].type) == "8":
                 print("PING from " + packet[0][IP].src)
-            else:
+            elif "IP" in fields:
                 print("Packet received!: " + packet[0][IP].src + "-->" + packet[0][IP].dst)
             checkPolicies(packet, p4info_helper, s1)
 
