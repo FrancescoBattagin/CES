@@ -1,5 +1,8 @@
 #!/usr/bin/env python2
-import argparse
+#import argparse
+#from aifc import Error
+#from sqlite3 import connect
+
 import grpc
 import os
 import sys
@@ -7,6 +10,14 @@ import p4runtime_sh.shell as sh
 from p4runtime_sh.shell import PacketIn
 from time import sleep
 from scapy.all import *
+#from scapy.layers.inet import ICMP, IP
+#from scapy.layers.l2 import Ether
+
+HOST1_TO_SWITCH_PORT = "1"
+SWITCH_TO_HOST2_PORT = "2"
+S1_ETH = "08:00:00:00:01:00"
+H1_ETH = "08:00:00:00:01:11"
+H2_ETH = "08:00:00:00:02:22"
 
 def checkPolicies(pkt):
 	#TODO db query, now managed as file.txt read
@@ -48,7 +59,8 @@ def lookForPolicy(policyList, pkt):
 	
 	src = pkt.getlayer(IP).src
 	dst = pkt.getlayer(IP).dst
-	
+	srcAddr = pkt.getlayer(Ether).src
+	switchAddr = pkt.getlayer(Ether).dst
 	#pkt_tcp = pkt.getlayer(TCP)
 	#pkt_udp = pkt.getlayer(UDP)
 	#if pkt_tcp != None:
@@ -63,14 +75,21 @@ def lookForPolicy(policyList, pkt):
 	#	print("protocol unknown")
 	print("src: " + src)
 	print("dst: " + dst)
+	print("scr: " + srcAddr)
+	print("switchAddr: " + switchAddr)
 	#print("dport: " + str(dport))
 	#print("sport: " + str(sport))
+	pkt_icmp = pkt.getlayer(ICMP)
+	pkt_ip = pkt.getlayer(IP)
+	
 	for policy in policyList:
 		if src in policy and dst in policy[1]:# and str(dport) in policy[2]:#src dst port; and dport in string: #sport not needed?                    
-			addEntries(dst, src)#also dport and protocol
+			dst_ethernet = policy[2]
+			print("dst_ethernet: " + dst_ethernet)
+			addEntries(src, dst, dst_ethernet)#also dport and protocol
 			#add bi-directional entry if icmp packet!
-			if ICMP in packet and str(packet[ICMP].type) == "8":
-				addEntries(src, dst)#also sport and protocol
+			if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":
+				addEntries(dst, src, srcAddr)#also sport and protocol
 			found = True
 			break
 	if not found:
@@ -79,12 +98,15 @@ def lookForPolicy(policyList, pkt):
 		print("packet dropped")
 
 
-def addEntries(ip_dst, ip_src):#add port and protocol
-	print("Inside addEntries")
+def addEntries(ip_src, ip_dst, dstAddr):#add port and protocol
 	te = sh.TableEntry('my_ingress.ipv4_exact')(action='my_ingress.ipv4_forward')
-	te.match["hdr.ipv4.dstAddr"] = ip_dst
 	te.match["hdr.ipv4.srcAddr"] = ip_src
-	#te.match["hdr.tcp.dstPort"] = port
+	te.match["hdr.ipv4.dstAddr"] = ip_dst
+	te.action["dstAddr"] = dstAddr
+	if dstAddr == H2_ETH:
+		te.action["port"] = SWITCH_TO_HOST2_PORT
+	else:
+		te.action["port"] = HOST1_TO_SWITCH_PORT
 	te.insert()
 	print("[!] New entry added")
 
@@ -95,7 +117,8 @@ def packetHandler(streamMessageResponse):
 
 	if streamMessageResponse.WhichOneof('update') =='packet':
 		packet_payload = packet.payload
-		pkt = Ether(_pkt=packet_payload)
+		pkt = Ether(_pkt=packet.payload)
+		
 		if pkt.getlayer(IP) != None:
 			pkt_src = pkt.getlayer(IP).src
 			pkt_dst = pkt.getlayer(IP).dst
@@ -103,6 +126,8 @@ def packetHandler(streamMessageResponse):
 		pkt_icmp = pkt.getlayer(ICMP)
 		pkt_ip = pkt.getlayer(IP)
 
+		print("ether_type: " + str(ether_type))
+		
 		if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":
 			print("PING from: " + pkt_src)
 			checkPolicies(pkt)
@@ -111,21 +136,15 @@ def packetHandler(streamMessageResponse):
 			checkPolicies(pkt)
 		else:
 			print("No needed layer (ARP, DNS, ...)")
-	else:
-		print("no")
-
 
 def controller():
 
 	sh.setup(
 		device_id=0,
-		grpc_addr='10.0.2.15:50051',
+		grpc_addr='localhost:50051',
 		election_id=(1, 0), # (high, low)
 		config=sh.FwdPipeConfig('build/advanced_tunnel.p4.p4info.txt','build/advanced_tunnel.json')
 	)
-
-	#s1.MasterArbitrationUpdate()
-	#s1.SetForwardingPipelineConfig(p4info=p4info_helper.p4info, bmv2_json_file_path=bmv2_file_path)
 
 	while True:
 		packets = None
@@ -137,21 +156,3 @@ def controller():
 
 if __name__ == '__main__':
 	controller()
-	#parser = argparse.ArgumentParser(description='P4Runtime Controller')
-	#parser.add_argument('--p4info', help='p4info proto in text format from p4c',
-	#                    type=str, action="store", required=False,
-	#                    default='./build/advanced_tunnel.p4.p4info.txt')
-	#parser.add_argument('--bmv2-json', help='BMv2 JSON file from p4c',
-	#                    type=str, action="store", required=False,
-	#                    default='./build/advanced_tunnel.json')
-	#args = parser.parse_args()
-	
-	#if not os.path.exists(args.p4info):
-	#    parser.print_help()
-	#    print("\np4info file not found: %s\nHave you run 'make'?" % args.p4info)
-	#    parser.exit(1)
-	#if not os.path.exists(args.bmv2_json):
-	#    parser.print_help()
-	#    print("\nBMv2 JSON file not found: %s\nHave you run 'make'?" % args.bmv2_json)
-	#    parser.exit(1)
-	#controller()
