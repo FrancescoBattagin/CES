@@ -1,18 +1,20 @@
 #!/usr/bin/env python2
-import argparse
+#import argparse
 import grpc
 import os
 import sys
+import p4runtime_sh.shell as sh
+from p4runtime_sh.shell import PacketIn
 from time import sleep
 from scapy.all import *
 # Import P4Runtime lib from parent utils dir
 # Probably there's a better way of doing this.
-import p4runtime_lib.bmv2
-from p4runtime_lib.switch import ShutdownAllSwitchConnections
-import p4runtime_lib.helper
+# import p4runtime_lib.bmv2
+# from p4runtime_lib.switch import ShutdownAllSwitchConnections
+# import p4runtime_lib.helper
 
-def checkPolicies(packet, p4info_helper, s1):
-    #TODO db query, now managed as file.txt read
+def checkPolicies(pkt):
+    #TODO yaml parsing, now managed as file.txt read
     policies = []
     with open("policiesDB.txt", 'r') as f:
         print("policiesDB.txt opened")
@@ -20,8 +22,7 @@ def checkPolicies(packet, p4info_helper, s1):
         while line:
             policies.append(line.split(" "))
             line = f.readline()
-    lookForPolicy(policies, packet, p4info_helper, s1)
-
+    lookForPolicy(policies, pkt)
 
 def checkPoliciesDB(packet):
     policies = []
@@ -44,113 +45,108 @@ def checkPoliciesDB(packet):
         print(e)
 
 
-def lookForPolicy(policyList, packet, p4info_helper, s1):
+def lookForPolicy(policyList, packet):
     found = False
     print("Policies: \n")
     print(policyList)
-    src = packet[0][IP].src
-    dst = packet[0][IP].dst
-    if TCP in packet[0]:
-            sport = packet[0][TCP].sport
-            dport = packet[0][TCP].dport
-    else
-        sport = packet[0][TCP].sport
-        dport = packet[0][UDP].dport
+    
+    src = pkt.getlayer(IP).src
+    dst = pkt.getlayer(IP).dst
+    srcAddr = pkt.getlayer(Ether).src
+    switchAddr = pkt.getlayer(Ether).dst
+    #pkt_tcp = pkt.getlayer(TCP)
+    #pkt_udp = pkt.getlayer(UDP)
+    #if pkt_tcp != None:
+    #    print("protocol: TCP")
+    #    sport = pkt_tcp.sport
+    #    dport = pkt_tcp.dport
+    #elif pkt_udp != None:
+    #    print("protocol = UDP")
+    #    sport = pkt_udp.sport
+    #    dport = pkt_udp.dport
+    #else:
+    #   print("protocol unknown")
+
+    print("src: " + src)
+    print("dst: " + dst)
+    print("scr: " + srcAddr)
+    print("switchAddr: " + switchAddr)
+
+    #print("dport: " + str(dport))
+    #print("sport: " + str(sport))
+    pkt_icmp = pkt.getlayer(ICMP)
+    pkt_ip = pkt.getlayer(IP)
+
     for policy in policyList:
-        for string in policy:
-            if src in string and dst in string and dport in string: #sport not needed
-                addEntries(packet[0][IP].dst, p4info_helper, s1)
-                #add bi-directional entry if icmp packet!
-                addEntries(packet[0][IP].src, p4info_helper, s1)
-                found = True
-                break
+        if src in policy and dst in policy[1]:# and str(dport) in policy[2]:#src dst port; and dport in string: #sport not needed?                    
+            dst_ethernet = policy[2]
+            print("dst_ethernet: " + dst_ethernet)
+            addEntries(src, dst, dst_ethernet)#also dport and protocol
+            #add bi-directional entry if icmp packet!
+            if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":
+                addEntries(dst, src, srcAddr)#also sport and protocol
+            found = True
+            break
     if not found:
         #packet drop
         packet = None
         print("packet dropped")
 
+def addEntries(ip_src, ip_dst, dstAddr):#add port and protocol
+    te = sh.TableEntry('my_ingress.ipv4_exact')(action='my_ingress.ipv4_forward')
+    te.match["hdr.ipv4.srcAddr"] = ip_src
+    te.match["hdr.ipv4.dstAddr"] = ip_dst
+    te.action["dstAddr"] = dstAddr
+    if dstAddr == H2_ETH:
+        te.action["port"] = SWITCH_TO_HOST2_PORT
+    else:
+        te.action["port"] = HOST1_TO_SWITCH_PORT
+    te.insert()
+    print("[!] New entry added")
 
-def addEntries(ip, p4info_helper, s1):
-    print("Inside addEntries")
-    te = p4info_helper.buildTableEntry(
-        table_name="my_ingress.ipv4_lpm",
-        match_fields={
-            "hdr.ipv4.dstAddr": ip
-        },
-        action_name="my_ingress.ipv4_forward",
-        action_params={}
+
+def packetHandler(streamMessageResponse):
+    print("Packets received")
+    packet = streamMessageResponse.packet
+
+    if streamMessageResponse.WhichOneof('update') =='packet':
+        packet_payload = packet.payload
+        pkt = Ether(_pkt=packet.payload)
+        
+        if pkt.getlayer(IP) != None:
+            pkt_src = pkt.getlayer(IP).src
+            pkt_dst = pkt.getlayer(IP).dst
+        ether_type = pkt.getlayer(Ether).type
+        pkt_icmp = pkt.getlayer(ICMP)
+        pkt_ip = pkt.getlayer(IP)
+
+        print("ether_type: " + str(ether_type))
+        
+        if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":
+            print("PING from: " + pkt_src)
+            checkPolicies(pkt)
+        elif pkt_ip != None:
+            print("Packet received!: " + pkt_src + "-->" + pkt_dst)
+            checkPolicies(pkt)
+        else:
+            print("No needed layer (ARP, DNS, ...)")
+
+def controller():
+
+    sh.setup(
+        device_id=0,
+        grpc_addr='localhost:50051',
+        election_id=(1, 0), # (high, low)
+        config=sh.FwdPipeConfig('p4-test.p4info.txt','p4-test.json')
     )
-    print("table entries defined")
-    s1.WriteTableEntry(te)
-    print("Installed leader table entry rule on ces")
-
-
-def controller(switch): #, p4info_file_path, bmv2_file_path, ):
-    # Instantiate a P4Runtime helper from the p4info file
-    p4info_helper = p4runtime_lib.helper.P4InfoHelper("./advanced_tunnel.p4.p4info.txt")
-
-    # Create a switch connection object for s1 and s2;
-    # this is backed by a P4Runtime gRPC connection.
-    # Also, dump all P4Runtime messages sent to switch to given txt files.
-    s1 = switch
-        #p4runtime_lib.bmv2.Bmv2SwitchConnection(
-        #name='s1',
-        #address='127.0.0.1:50051',
-        #device_id=0,
-        #proto_dump_file='logs/s1-p4runtime-requests.txt')
-
-    # Send master arbitration update message to establish this controller as
-    # master (required by P4Runtime before performing any other write operation)
-    #s1.MasterArbitrationUpdate()
-
-    # Install the P4 program on the switches
-    #s1.SetForwardingPipelineConfig(p4info=p4info_helper.p4info, bmv2_json_file_path=bmv2_file_path)
-    #print("Installed P4 Program using SetForwardingPipelineConfig on s1")
 
     while True:
-        packet = None
+        packets = None
         print("Waiting for receive something")
+        packet_in = sh.PacketIn()
+        packets = packet_in.sniff(timeout=5)
+        for streamMessageResponse in packets:
+            packetHandler(streamMessageResponse)
 
-        packet = sniff(count = 1)
-
-        print("Packet:")
-        print(packet[0])
-
-        fields = []
-        print("Fields:")
-        for field in packet[0]:
-            fields.append(field)
-        print(fields)
-        
-        if ICMP in packet[0] and str(packet[0][ICMP].type) == "8":
-            print("PING from " + packet[0][IP].src)
-            checkPolicies(packet, p4info_helper, s1)
-        elif IP in packet[0]:
-            print("Packet received!: " + packet[0][IP].src + "-->" + packet[0][IP].dst)
-            checkPolicies(packet, p4info_helper, s1)
-        else:
-            print("No needed layer")
-
-#if __name__ == '__main__':
-def beg(switch):
-    print("INSIDE BEG")
-    parser = argparse.ArgumentParser(description='P4Runtime Controller')
-    parser.add_argument('--p4info', help='p4info proto in text format from p4c',
-                        type=str, action="store", required=False,
-                        default='./build/advanced_tunnel.p4.p4info.txt')
-    parser.add_argument('--bmv2-json', help='BMv2 JSON file from p4c',
-                        type=str, action="store", required=False,
-                        default='./build/advanced_tunnel.json')
-    args = parser.parse_args()
-    print("ARGS:")
-    print(args)
-
-    if not os.path.exists(args.p4info):
-        parser.print_help()
-        print("\np4info file not found: %s\nHave you run 'make'?" % args.p4info)
-        parser.exit(1)
-    if not os.path.exists(args.bmv2_json):
-        parser.print_help()
-        print("\nBMv2 JSON file not found: %s\nHave you run 'make'?" % args.bmv2_json)
-        parser.exit(1)
-    controller(args.p4info, args.bmv2_json, switch)
+if __name__ == '__main__':
+    controller()
