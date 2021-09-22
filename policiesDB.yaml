@@ -1,0 +1,16 @@
+policies:
+	-
+	src: 10.0.2.15
+	dst: 10.0.2.3
+	dst_ethernet: Null
+	port: 53
+    -
+	src: 10.0.1.1 
+	dst: 10.0.2.2
+	dst_ethernet: 08:00:00:00:02:22
+	port: 12
+	-
+	src: aaaaaaaaaaa
+	dst: servizio
+	dst_ethernet: Null
+	port: 5

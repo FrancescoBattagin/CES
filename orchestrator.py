@@ -7,6 +7,7 @@ import p4runtime_sh.shell as sh
 from p4runtime_sh.shell import PacketIn
 from time import sleep
 from scapy.all import *
+import yaml
 # Import P4Runtime lib from parent utils dir
 # Probably there's a better way of doing this.
 # import p4runtime_lib.bmv2
@@ -15,14 +16,20 @@ from scapy.all import *
 
 def checkPolicies(pkt):
     #TODO yaml parsing, now managed as file.txt read
-    policies = []
-    with open("policiesDB.txt", 'r') as f:
-        print("policiesDB.txt opened")
-        line = f.readline()
-        while line:
-            policies.append(line.split(" "))
-            line = f.readline()
-    lookForPolicy(policies, pkt)
+    #policies = []
+    #with open("policiesDB.txt", 'r') as f:
+    #    print("policiesDB.txt opened")
+    #    line = f.readline()
+    #    while line:
+    #        policies.append(line.split(" "))
+    #        line = f.readline()
+
+    stream = open("policiesDB.yaml", 'r')
+    policies_list = yaml.safe_load(stream)
+    #for key, value in policies.items():
+    #    print (key + " : " + str(value))
+
+    lookForPolicy(policies_list, pkt)
 
 def checkPoliciesDB(packet):
     policies = []
@@ -78,8 +85,9 @@ def lookForPolicy(policyList, packet):
     pkt_ip = pkt.getlayer(IP)
 
     for policy in policyList:
-        if src in policy and dst in policy[1]:# and str(dport) in policy[2]:#src dst port; and dport in string: #sport not needed?                    
-            dst_ethernet = policy[2]
+        #policy_tuple.get("dst")
+        if src == policy.get("src") and dst == policy.get("dst"):# and str(dport) == policy.get("dport")): #sport not needed?
+            dst_ethernet = policy.get("dst_ethernet")
             print("dst_ethernet: " + dst_ethernet)
             addEntries(src, dst, dst_ethernet)#also dport and protocol
             #add bi-directional entry if icmp packet!
