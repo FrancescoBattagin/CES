@@ -4,7 +4,7 @@ policies:
 	-
 	src: '10.0.2.15' 	#source IP
 	dst: '10.0.2.3'  	#serviceName to be substituted with an IP
-	port: 53
+	port: 53					#service port
 	tee: True					#trusted execution environment
 	fs_encr: False		#file system encryption
 	net_encr: False		#network encryption
