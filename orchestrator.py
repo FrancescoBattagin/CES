@@ -133,7 +133,7 @@ def controller():
     #connection
     sh.setup(
         device_id=0,
-        grpc_addr='localhost:50051', #substitute localhost with switch ip address
+        grpc_addr='192.187.3.7:50051', #substitute ip and port with the ones of the specific switch
         election_id=(1, 0), # (high, low)
         config=sh.FwdPipeConfig('p4-test.p4info.txt','p4-test.json')
     )
