@@ -107,9 +107,9 @@ control my_ingress(inout headers_t hdr,
         hdr.ethernet.dstAddr = dstAddr;
     }
 
-    action ipv4_forward(EthernetAddress dstAddr, egressSpec_t port) {
+    action ipv4_forward(egressSpec_t port) {
         standard_metadata.egress_spec = port;
-        ethernet_forward(dstAddr);
+        /*ethernet_forward(dstAddr);*/
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
 
@@ -125,7 +125,6 @@ control my_ingress(inout headers_t hdr,
         }
         actions = {
             ipv4_forward;
-            drop;
             send_to_controller;
             NoAction;
         }
@@ -138,7 +137,7 @@ control my_ingress(inout headers_t hdr,
             ipv4_exact.apply();
         }
         else
-            send_to_controller();
+            drop();
     }
 }
 

@@ -1,7 +1,7 @@
 #Here is a list of policies used as a test; each specific policy is a tuple
 
-policies:
-	-
+#policies:
+-
 	src: '10.0.2.15' 	#source IP
 	dst: '10.0.2.3'  	#serviceName to be substituted with an IP
 	port: 53					#service port
@@ -10,7 +10,7 @@ policies:
 	net_encr: False		#network encryption
 	sec_boot: True		#secure boot
 
-  -
+-
 	src: '10.0.1.1' 
 	dst: '10.0.2.2'
 	port: 12
@@ -19,10 +19,19 @@ policies:
 	net_encr: False
 	sec_boot: True
 
-	-
+-
 	src: 'source'
 	dst: 'serviceName'
 	port: 25
+	tee: True
+	fs_encr: False
+	net_encr: False
+	sec_boot: True
+
+-
+	src: '45.0.0.2'
+	dst: '8.8.8.8'
+	port: 38106
 	tee: True
 	fs_encr: False
 	net_encr: False

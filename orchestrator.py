@@ -48,7 +48,7 @@ def checkPoliciesDB(packet):
         print(e)
 
 
-def lookForPolicy(policyList, packet):
+def lookForPolicy(policyList, pkt):
     found = False
     print("[!] Policies: \n")
     print(policyList)
