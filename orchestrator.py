@@ -55,8 +55,8 @@ def lookForPolicy(policyList, pkt):
     
     src = pkt.getlayer(IP).src
     dst = pkt.getlayer(IP).dst
-    srcAddr = pkt.getlayer(Ether).src
-    switchAddr = pkt.getlayer(Ether).dst
+    srcAddr = pkt.getlayer(Ether).src #src Ether addr
+    switchAddr = pkt.getlayer(Ether).dst #switch Ether addr
     
     pkt_tcp = pkt.getlayer(TCP)
     pkt_udp = pkt.getlayer(UDP)
@@ -71,7 +71,7 @@ def lookForPolicy(policyList, pkt):
 
     print("src: " + src)
     print("dst: " + dst)
-    print("scr: " + srcAddr)
+    print("srcAddr: " + srcAddr)
     print("switchAddr: " + switchAddr)
     print("sport: " + str(sport))
     print("dport: " + str(dport))
@@ -81,28 +81,28 @@ def lookForPolicy(policyList, pkt):
 
     for policy in policyList:
         #policy_tuple.get("dst")
-        if src == policy.get("src") and dst == policy.get("dst") and dport == policy.get("dport"):
+        if src == policy.get("src") and dst == policy.get("ip") and dport == policy.get("port"): #check how to specify src (imsi, ip, ...)
             addEntries(src, dst, dport)
             
             #add bi-directional entry if icmp packet
             if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":
-                addEntries(dst, src, sport)#also sport and protocol
+                addEntries(dst, src, sport)
             
             found = True
             break
     if not found:
         #packet drop
         packet = None
-        print("[!] Packet dropped")
+        print("[!] Packet dropped\n\n\n")
 
 def addEntries(ip_src, ip_dst, port):#add port and protocol
     te = sh.TableEntry('my_ingress.ipv4_exact')(action='my_ingress.ipv4_forward')
     te.match["hdr.ipv4.srcAddr"] = ip_src
     te.match["hdr.ipv4.dstAddr"] = ip_dst
-    te.action["dstAddr"] = dstAddr
+    #te.action["dstAddr"] = dstAddr
     te.action["port"] = port
     te.insert()
-    print("[!] New entry added")
+    print("[!] New entry added\n\n\n")
 
 
 def packetHandler(streamMessageResponse):
@@ -133,7 +133,7 @@ def controller():
     #connection
     sh.setup(
         device_id=0,
-        grpc_addr='192.187.3.7:50051', #substitute ip and port with the ones of the specific switch
+        grpc_addr='192.187.3.8:50051', #substitute ip and port with the ones of the specific switch
         election_id=(1, 0), # (high, low)
         config=sh.FwdPipeConfig('p4-test.p4info.txt','p4-test.json')
     )
