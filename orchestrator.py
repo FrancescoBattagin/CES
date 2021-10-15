@@ -55,24 +55,24 @@ def lookForPolicy(policyList, pkt):
     
     src = pkt.getlayer(IP).src
     dst = pkt.getlayer(IP).dst
-    srcAddr = pkt.getlayer(Ether).src #src Ether addr
-    switchAddr = pkt.getlayer(Ether).dst #switch Ether addr
     
     pkt_tcp = pkt.getlayer(TCP)
     pkt_udp = pkt.getlayer(UDP)
+    protocol = ""
     if pkt_tcp != None:
         sport = pkt_tcp.sport
         dport = pkt_tcp.dport
+        protocol = "TCP"
     elif pkt_udp != None:
         sport = pkt_udp.sport
         dport = pkt_udp.dport
+        protocol = "UDP"
     else:
-        print("\nProtocol unknown\n")
+        print("\n[!] Protocol unknown\n")
+        return
 
     print("src: " + src)
     print("dst: " + dst)
-    print("srcAddr: " + srcAddr)
-    print("switchAddr: " + switchAddr)
     print("sport: " + str(sport))
     print("dport: " + str(dport))
     
@@ -81,7 +81,7 @@ def lookForPolicy(policyList, pkt):
 
     for policy in policyList:
         #policy_tuple.get("dst")
-        if src == policy.get("src") and dst == policy.get("ip") and dport == policy.get("port"): #check how to specify src (imsi, ip, ...)
+        if src == policy.get("src") and dst == policy.get("ip") and dport == policy.get("port") and protocol == policy.get("protocol"): #check how to specify src (imsi, ip, ...)
             addEntries(src, dst, dport)
             
             #add bi-directional entry if icmp packet
@@ -99,7 +99,6 @@ def addEntries(ip_src, ip_dst, port):#add port and protocol
     te = sh.TableEntry('my_ingress.ipv4_exact')(action='my_ingress.ipv4_forward')
     te.match["hdr.ipv4.srcAddr"] = ip_src
     te.match["hdr.ipv4.dstAddr"] = ip_dst
-    #te.action["dstAddr"] = dstAddr
     te.action["port"] = port
     te.insert()
     print("[!] New entry added\n\n\n")

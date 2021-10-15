@@ -2,36 +2,44 @@
 
 #policies:
 -
-	src: '10.0.2.15' 	#source IP
-	dst: '10.0.2.3'  	#serviceName to be substituted with an IP
+	serviceName: "name" #application name
+	ip: '10.0.2.15' 	#src IP
 	port: 53					#service port
+	protocol: TCP     #protocol
+	allowed_users: 'imsi:310170845466094', 'imsi:5021301234567894' #wip -> define a "structure"
 	tee: True					#trusted execution environment
 	fs_encr: False		#file system encryption
 	net_encr: False		#network encryption
 	sec_boot: True		#secure boot
 
 -
-	src: '10.0.1.1' 
-	dst: '10.0.2.2'
+	serviceName: "name2"
+	ip: '10.0.1.1' 
 	port: 12
+	protocol: TCP
+	allowed_users: 'imsi:310170845466094', 'imsi:5021301234567894'
 	tee: True
 	fs_encr: False
 	net_encr: False
 	sec_boot: True
 
 -
-	src: 'source'
-	dst: 'serviceName'
-	port: 25
+	serviceName: "name3"
+	ip: '10.0.2.2' 
+	port: 48
+	protocol: TCP
+	allowed_users: 'imsi:310170845466094', 'imsi:5021301234567894'
 	tee: True
 	fs_encr: False
 	net_encr: False
 	sec_boot: True
 
 -
-	src: '45.0.0.2'
-	dst: '8.8.8.8'
-	port: 38106
+	serviceName: "name3"
+	ip: '10.0.3.3' 
+	port: 27
+	protocol: TCP
+	allowed_users: 'imsi:310170845466094', 'imsi:5021301234567894'
 	tee: True
 	fs_encr: False
 	net_encr: False
