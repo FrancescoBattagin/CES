@@ -6,15 +6,37 @@ from p4runtime_sh.shell import PacketIn
 from time import sleep
 from scapy.all import *
 import yaml
+import threading
 
 # No need to import p4runtime_lib
 # import p4runtime_lib.bmv2
+
+#check if PolicyDB has been modified
+def mod_detecter():
+    while True:
+        i = inotify.adapters.Inotify()
+        i.add_watch("policiesDB.yaml")
+
+        for event in i.event_gen(yield_nones=False):
+            (_, type_names, path, filename) = event
+
+            if "IN_CLOSE_WRITE" in event[1]: #type_names is a list
+                print("[!] POLICYDB MODIFIED")
+                #[!] to add -> function that manages modifications in policyDB
+
+            #log:
+            #print("PATH=[{}] FILENAME=[{}] EVENT_TYPES={}".format(path, filename, type_names))
+
+
 
 def checkPolicies(pkt):
     #policyDB as a yaml file
     #each policy is a tuple containing specific attributes
     stream = open("policiesDB.yaml", 'r')
     policies_list = yaml.safe_load(stream)
+    
+    policies_len = le
+
     lookForPolicy(policies_list, pkt)
 
     #if policyDB is a .txt file
@@ -25,6 +47,7 @@ def checkPolicies(pkt):
     #    while line:
     #        policies.append(line.split(" "))
     #        line = f.readline()
+
 
 #if policyDB is managed as a true db
 def checkPoliciesDB(packet):
@@ -76,6 +99,7 @@ def lookForPolicy(policyList, pkt):
     print("sport: " + str(sport))
     print("dport: " + str(dport))
     
+
     pkt_icmp = pkt.getlayer(ICMP)
     pkt_ip = pkt.getlayer(IP)
 
@@ -95,7 +119,7 @@ def lookForPolicy(policyList, pkt):
         packet = None
         print("[!] Packet dropped\n\n\n")
 
-def addEntries(ip_src, ip_dst, port):#add port and protocol
+def addEntries(ip_src, ip_dst, port):
     te = sh.TableEntry('my_ingress.ipv4_exact')(action='my_ingress.ipv4_forward')
     te.match["hdr.ipv4.srcAddr"] = ip_src
     te.match["hdr.ipv4.dstAddr"] = ip_dst
@@ -136,6 +160,9 @@ def controller():
         election_id=(1, 0), # (high, low)
         config=sh.FwdPipeConfig('p4-test.p4info.txt','p4-test.json')
     )
+
+    detector = threading.Thread(target = mod_detecter)
+    detector.start()
 
     while True:
         packets = None
