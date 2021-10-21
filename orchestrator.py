@@ -43,12 +43,9 @@ def mod_manager():
     for policy_tmp in tmp:
 
         for policy in policies_list:
-            print(policy)
-        
             if policy.get("serviceName") == policy_tmp.get("serviceName"):
                 found = True
-                print("[!] Service found: " + "--> " + policy.get("serviceName"))
-            
+                
                 if policy.get("ip") != policy_tmp.get("ip"):
                     print("[!] IP_MODIFICATIONS")
                     print("[!] Editing policies IP...")
@@ -66,13 +63,12 @@ def mod_manager():
                 for ue in policy.get("allowed_users"):
                     if ue not in policy_tmp.get("allowed_users"):
                         print("[!] UE_MODIFICATIONS_ADD")
-                        addEntry(ue_ip, policy.get("ip"), policy.get("port")) #[!] how to handle ue_ip \w auth different from ip?
+                        addEntries(ue_ip, policy.get("ip"), policy.get("port")) #[!] how to handle ue_ip \w auth different from ip?
                 for ue in policy_tmp.get("allowed_users"):
-                    if ue not in policy.get("allowed_users")
+                    if ue not in policy.get("allowed_users"):
                         print("[!] UE_MODIFICATIONS_DEL")
                         delUE(ue_ip, policy.get("ip")) #[!] how to handle ue_ip \w auth different from ip?
 
-                #how to change it inside table_entry?
                 if policy.get("tee") != policy_tmp.get("tee"):
                     print("[!] TEE_MODIFICATIONS")
                     
@@ -91,16 +87,21 @@ def mod_manager():
                 print("[!] Service not found")   
                 print("[!] Deleting service policies...")
                 delPolicies(policy.get("ip"))
+    
+    print("[!] New policies_list: ")
+    print(policies_list)
+
 
 #del policies when service not found
 def delPolicies(ip):
-    for te in table_entry["my_ingress.ipv4_exact"].read():
+    for te in sh.Table_entry("my_ingress.ipv4_exact").read():
         if te.match["hdr.ipv4.srcAddr"] == ip:
             te.delete()
 
+
 #edit service ip 
 def editIPPolicies(old_ip, new_ip, port):
-    for te in table_entry["my_ingress.ipv4_exact"].read():
+    for te in sh.TableEntry("my_ingress.ipv4_exact").read():
         if te.match["hdr.ipv4.srcAddr"] == old_ip:
             src_addr = te.match["hdr.ipv4.src_addr"]
             te.delete()
@@ -110,9 +111,10 @@ def editIPPolicies(old_ip, new_ip, port):
             te.action["port"] = port
             te.insert()
 
+
 #edit service port
 def editPortPolicies(ip, new_port):
-    for te in table_entry["my_ingress.ipv4_exact"].read():
+    for te in sh.TableEntry("my_ingress.ipv4_exact").read():
         if te.match["hdr.ipv4.srcAddr"] == ip:
             src_addr = te.match["hdr.ipv4.src_addr"]
             te.delete()
@@ -120,13 +122,25 @@ def editPortPolicies(ip, new_port):
             te.match["hdr.ipv4.srcAddr"] = src_addr
             te.match["hdr.ipv4.dstAddr"] = ip
             te.action["port"] = new_port
-            te.insert() 
+            te.insert()
+
 
 #delete a policy (old service, user not allowed anymore)
 def delUE(ue_ip, service_ip):
     for te in table_entry["my_ingress.ipv4_exact"].read():
         if te.match["hdr.ipv4.srcAddr"] == ue_ip and te.match["hdr.ipv4.dstAddr"] == service_ip:
             te.delete()
+
+
+#add a new entry
+def addEntry(ip_src, ip_dst, port):
+    te = sh.TableEntry('my_ingress.ipv4_exact')(action='my_ingress.ipv4_forward')
+    te.match["hdr.ipv4.srcAddr"] = ip_src
+    te.match["hdr.ipv4.dstAddr"] = ip_dst
+    te.action["port"] = port
+    te.insert()
+    print("[!] New entry added")
+
 
 #update policies_list
 def getPolicies():
@@ -165,6 +179,7 @@ def getPoliciesDB(packet):
 
     except Error as e:
         print(e)
+
 
 #look for policy and add new entries if found (when a packet is received)
 def lookForPolicy(policyList, pkt):
@@ -214,14 +229,6 @@ def lookForPolicy(policyList, pkt):
         packet = None
         print("[!] Packet dropped\n\n\n")
 
-#add a new entry
-def addEntry(ip_src, ip_dst, port):
-    te = sh.TableEntry('my_ingress.ipv4_exact')(action='my_ingress.ipv4_forward')
-    te.match["hdr.ipv4.srcAddr"] = ip_src
-    te.match["hdr.ipv4.dstAddr"] = ip_dst
-    te.action["port"] = port
-    te.insert()
-    print("[!] New entry added\n\n\n")
 
 #handle a just received packet
 def packetHandler(streamMessageResponse):
@@ -247,6 +254,7 @@ def packetHandler(streamMessageResponse):
             lookForPolicy(policies_list, pkt)
         else:
             print("[!] No needed layer (ARP, DNS, ...)")
+
 
 #setup connection \w switch, sets policies_list, starts mod_detector thread and listens for new packets
 def controller():
