@@ -7,6 +7,7 @@ from time import sleep
 from scapy.all import *
 import yaml
 import threading
+import inotify.adapters
 
 # No need to import p4runtime_lib
 # import p4runtime_lib.bmv2
