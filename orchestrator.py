@@ -16,7 +16,7 @@ import inotify.adapters
 policies_list = []
 
 #check if PolicyDB has been modified
-def mod_detecter():
+def mod_detector():
     while True:
         i = inotify.adapters.Inotify()
         i.add_watch("policiesDB.yaml")
@@ -269,11 +269,20 @@ def controller():
         config=sh.FwdPipeConfig('p4-test.p4info.txt','p4-test.json')
     )
 
+    #drop control packets (same interface)
+    te = sh.TableEntry('my_ingress.ipv4_exact')(action='my_ingress.drop')
+    te.match["hdr.ipv4.srcAddr"] = "192.187.3.8"
+    te.match["hdr.ipv4.dstAddr"] = "192.187.3.7"
+    te.insert()
+    print("[!] Control packets to be dropped")
+
+
+
     #get and save policies_list    
     getPolicies()
 
     #thread that checks for policies modifications
-    detector = threading.Thread(target = mod_detecter)
+    detector = threading.Thread(target = mod_detector)
     detector.start()
 
     #listening for new packets
