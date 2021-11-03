@@ -274,6 +274,10 @@ def controller():
     te.match["hdr.ipv4.srcAddr"] = "192.187.3.8"
     te.match["hdr.ipv4.dstAddr"] = "192.187.3.7"
     te.insert()
+    te = sh.TableEntry('my_ingress.ipv4_exact')(action='my_ingress.drop')
+    te.match["hdr.ipv4.srcAddr"] = "192.187.3.7"
+    te.match["hdr.ipv4.dstAddr"] = "192.187.3.8"
+    te.insert()
     print("[!] Control packets to be dropped")
 
 
