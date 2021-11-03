@@ -199,7 +199,7 @@
       "name" : "deparser",
       "id" : 0,
       "source_info" : {
-        "filename" : "p4-test.p4",
+        "filename" : "advanced_tunnel.p4",
         "line" : 168,
         "column" : 8,
         "source_fragment" : "my_deparser"
@@ -234,7 +234,29 @@
             }
           ],
           "source_info" : {
-            "filename" : "p4-test.p4",
+            "filename" : "advanced_tunnel.p4",
+            "line" : 102,
+            "column" : 8,
+            "source_fragment" : "mark_to_drop(standard_metadata)"
+          }
+        }
+      ]
+    },
+    {
+      "name" : "my_ingress.drop",
+      "id" : 2,
+      "runtime_data" : [],
+      "primitives" : [
+        {
+          "op" : "mark_to_drop",
+          "parameters" : [
+            {
+              "type" : "header",
+              "value" : "standard_metadata"
+            }
+          ],
+          "source_info" : {
+            "filename" : "advanced_tunnel.p4",
             "line" : 102,
             "column" : 8,
             "source_fragment" : "mark_to_drop(standard_metadata)"
@@ -244,12 +266,8 @@
     },
     {
       "name" : "my_ingress.ipv4_forward",
-      "id" : 2,
+      "id" : 3,
       "runtime_data" : [
-        {
-          "name" : "dstAddr",
-          "bitwidth" : 48
-        },
         {
           "name" : "port",
           "bitwidth" : 9
@@ -265,52 +283,14 @@
             },
             {
               "type" : "runtime_data",
-              "value" : 1
-            }
-          ],
-          "source_info" : {
-            "filename" : "p4-test.p4",
-            "line" : 111,
-            "column" : 8,
-            "source_fragment" : "standard_metadata.egress_spec = port"
-          }
-        },
-        {
-          "op" : "assign",
-          "parameters" : [
-            {
-              "type" : "field",
-              "value" : ["ethernet", "srcAddr"]
-            },
-            {
-              "type" : "field",
-              "value" : ["ethernet", "dstAddr"]
-            }
-          ],
-          "source_info" : {
-            "filename" : "p4-test.p4",
-            "line" : 106,
-            "column" : 8,
-            "source_fragment" : "hdr.ethernet.srcAddr = hdr.ethernet.dstAddr"
-          }
-        },
-        {
-          "op" : "assign",
-          "parameters" : [
-            {
-              "type" : "field",
-              "value" : ["ethernet", "dstAddr"]
-            },
-            {
-              "type" : "runtime_data",
               "value" : 0
             }
           ],
           "source_info" : {
-            "filename" : "p4-test.p4",
-            "line" : 107,
+            "filename" : "advanced_tunnel.p4",
+            "line" : 111,
             "column" : 8,
-            "source_fragment" : "hdr.ethernet.dstAddr = dstAddr; ..."
+            "source_fragment" : "standard_metadata.egress_spec = port"
           }
         },
         {
@@ -349,36 +329,10 @@
             }
           ],
           "source_info" : {
-            "filename" : "p4-test.p4",
+            "filename" : "advanced_tunnel.p4",
             "line" : 113,
             "column" : 8,
             "source_fragment" : "hdr.ipv4.ttl = hdr.ipv4.ttl - 1"
-          }
-        }
-      ]
-    },
-    {
-      "name" : "my_ingress.send_to_controller",
-      "id" : 3,
-      "runtime_data" : [],
-      "primitives" : [
-        {
-          "op" : "assign",
-          "parameters" : [
-            {
-              "type" : "field",
-              "value" : ["standard_metadata", "egress_spec"]
-            },
-            {
-              "type" : "hexstr",
-              "value" : "0x00ff"
-            }
-          ],
-          "source_info" : {
-            "filename" : "p4-test.p4",
-            "line" : 117,
-            "column" : 8,
-            "source_fragment" : "standard_metadata.egress_spec = 255"
           }
         }
       ]
@@ -401,7 +355,7 @@
             }
           ],
           "source_info" : {
-            "filename" : "p4-test.p4",
+            "filename" : "advanced_tunnel.p4",
             "line" : 117,
             "column" : 8,
             "source_fragment" : "standard_metadata.egress_spec = 255"
@@ -415,7 +369,7 @@
       "name" : "ingress",
       "id" : 0,
       "source_info" : {
-        "filename" : "p4-test.p4",
+        "filename" : "advanced_tunnel.p4",
         "line" : 97,
         "column" : 8,
         "source_fragment" : "my_ingress"
@@ -426,7 +380,7 @@
           "name" : "my_ingress.ipv4_exact",
           "id" : 0,
           "source_info" : {
-            "filename" : "p4-test.p4",
+            "filename" : "advanced_tunnel.p4",
             "line" : 121,
             "column" : 10,
             "source_fragment" : "ipv4_exact"
@@ -451,7 +405,7 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [2, 1, 3, 0],
+          "action_ids" : [3, 1, 4, 0],
           "actions" : ["my_ingress.ipv4_forward", "my_ingress.drop", "my_ingress.send_to_controller", "NoAction"],
           "base_default_next" : null,
           "next_tables" : {
@@ -461,20 +415,20 @@
             "NoAction" : null
           },
           "default_entry" : {
-            "action_id" : 3,
+            "action_id" : 4,
             "action_const" : false,
             "action_data" : [],
             "action_entry_const" : false
           }
         },
         {
-          "name" : "tbl_send_to_controller",
+          "name" : "tbl_drop",
           "id" : 1,
           "source_info" : {
-            "filename" : "p4-test.p4",
+            "filename" : "advanced_tunnel.p4",
             "line" : 141,
             "column" : 12,
-            "source_fragment" : "send_to_controller()"
+            "source_fragment" : "drop()"
           },
           "key" : [],
           "match_type" : "exact",
@@ -483,14 +437,14 @@
           "with_counters" : false,
           "support_timeout" : false,
           "direct_meters" : null,
-          "action_ids" : [4],
-          "actions" : ["my_ingress.send_to_controller"],
+          "action_ids" : [2],
+          "actions" : ["my_ingress.drop"],
           "base_default_next" : null,
           "next_tables" : {
-            "my_ingress.send_to_controller" : null
+            "my_ingress.drop" : null
           },
           "default_entry" : {
-            "action_id" : 4,
+            "action_id" : 2,
             "action_const" : true,
             "action_data" : [],
             "action_entry_const" : true
@@ -503,7 +457,7 @@
           "name" : "node_2",
           "id" : 0,
           "source_info" : {
-            "filename" : "p4-test.p4",
+            "filename" : "advanced_tunnel.p4",
             "line" : 137,
             "column" : 12,
             "source_fragment" : "hdr.ipv4.isValid()"
@@ -520,7 +474,7 @@
             }
           },
           "true_next" : "my_ingress.ipv4_exact",
-          "false_next" : "tbl_send_to_controller"
+          "false_next" : "tbl_drop"
         }
       ]
     },
@@ -528,7 +482,7 @@
       "name" : "egress",
       "id" : 1,
       "source_info" : {
-        "filename" : "p4-test.p4",
+        "filename" : "advanced_tunnel.p4",
         "line" : 148,
         "column" : 8,
         "source_fragment" : "my_egress"
@@ -580,7 +534,7 @@
       ["standard_metadata", "priority"]
     ]
   ],
-  "program" : "./p4-test.p4i",
+  "program" : "advanced_tunnel.p4",
   "__meta__" : {
     "version" : [2, 23],
     "compiler" : "https://github.com/p4lang/p4c"
