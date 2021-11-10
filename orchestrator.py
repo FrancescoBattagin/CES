@@ -74,7 +74,7 @@ def mod_manager():
                                 if service.get("serviceName") == policy.get("serviceName") and service.get("ip") == policy.get("ip"): #same service and ip
                                     for user in service.get("allowed_users"):
                                         if user.get("method") == ue.get("method") and user.get("user") == ue.get("user"): #same method and same id (imsi or token)
-                                        addEntries(user.get("actual_ip", policy.get("ip"), policy.get("port")))
+                                            addEntries(user.get("actual_ip", policy.get("ip"), policy.get("port")))
                 #del
                 for ue in policy_tmp.get("allowed_users"):
                     if ue not in policy.get("allowed_users"):
