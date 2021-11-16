@@ -236,12 +236,24 @@ def lookForPolicy(policyList, pkt):
 
     for policy in policyList:
         #policy_tuple.get("dst")
-        if src == policy.get("src") and dst == policy.get("ip") and dport == policy.get("port") and protocol == policy.get("protocol"): #check how to specify src (imsi, ip, ...)
-            addEntry(src, dst, dport)
-            
-            #add bi-directional entry if icmp packet
-            if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":
-                addEntry(dst, src, sport)
+        if dst == policy.get("ip") and dport == policy.get("port") and protocol == policy.get("protocol"): #check how to specify src (imsi, ip, ...)
+            for user in policy.get("allowed_users"):
+                if user.get("method") == "ip" and user.get("user") == src:
+                    addEntry(src, dst, dport)
+                    #add bi-directional entry if icmp packet
+                    if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":
+                        addEntry(dst, src, sport)
+                else: #imsi or token
+                    stream = open("../CES/ip_map.yaml", 'r')
+                    mapping = yaml.safe_load(stream)
+                    for service in mapping:
+                        if service.get("serviceName") == policy.get("serviceName") and service.get("ip") == policy.get("ip"): #same service and ip
+                            for user in service.get("allowed_users"):
+                                if user.get("method") == ue.get("method") and user.get("user") == ue.get("user"): #same method and same id (imsi or token)
+                                    addEntries(user.get("actual_ip", policy.get("ip"), policy.get("port")))
+                                    #add bi-directional entry if icmp packet
+                                    if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":
+                                        addEntry(dst, src, sport)
             found = True
             break
     
@@ -297,12 +309,12 @@ def controller():
 
     #drop control packets (if interface is unique)
     #te = sh.TableEntry('my_ingress.ipv4_exact')(action='my_ingress.drop')
-    #te.match["hdr.ipv4.srcAddr"] = "172.17.0.1"
-    #te.match["hdr.ipv4.dstAddr"] = "172.17.0.3"
+    #te.match["hdr.ipv4.srcAddr"] = "192.187.3.7"
+    #te.match["hdr.ipv4.dstAddr"] = "192.187.3.8"
     #te.insert()
     #te = sh.TableEntry('my_ingress.ipv4_exact')(action='my_ingress.drop')
-    #te.match["hdr.ipv4.srcAddr"] = "172.17.0.3"
-    #te.match["hdr.ipv4.dstAddr"] = "172.17.0.1"
+    #te.match["hdr.ipv4.srcAddr"] = "192.187.3.8"
+    #te.match["hdr.ipv4.dstAddr"] = "192.187.3.7"
     #te.insert()
     #print("[!] Control packets to be dropped")
 
