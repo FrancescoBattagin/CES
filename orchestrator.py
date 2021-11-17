@@ -67,6 +67,7 @@ def mod_manager():
                         print("[!] UE_MODIFICATIONS_ADD")
                         if ue.get("method") == "ip":
                             addEntries(ue.get("user"), policy.get("ip"), policy.get("port"))
+                            #check bidirectional traffic -> sport?
                         else: #imsi or token
                             stream = open("../CES/ip_map.yaml", 'r')
                             mapping = yaml.safe_load(stream)
@@ -75,6 +76,7 @@ def mod_manager():
                                     for user in service.get("allowed_users"):
                                         if user.get("method") == ue.get("method") and user.get("user") == ue.get("user"): #same method and same id (imsi or token)
                                             addEntries(user.get("actual_ip", policy.get("ip"), policy.get("port")))
+                                            #check bidirectional traffic -> sport?
                 #del
                 for ue in policy_tmp.get("allowed_users"):
                     if ue not in policy.get("allowed_users"):
@@ -158,7 +160,7 @@ def addEntry(ip_src, ip_dst, port):
     te = sh.TableEntry('my_ingress.ipv4_exact')(action='my_ingress.ipv4_forward')
     te.match["hdr.ipv4.srcAddr"] = ip_src
     te.match["hdr.ipv4.dstAddr"] = ip_dst
-    te.action["port"] = port
+    te.action["port"] = str(port)
     te.insert()
     print("[!] New entry added")
 
@@ -240,9 +242,8 @@ def lookForPolicy(policyList, pkt):
             for user in policy.get("allowed_users"):
                 if user.get("method") == "ip" and user.get("user") == src:
                     addEntry(src, dst, dport)
-                    #add bi-directional entry if icmp packet
-                    if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":
-                        addEntry(dst, src, sport)
+                    #add bi-directional entry
+                    addEntry(dst, src, sport)
                 else: #imsi or token
                     stream = open("../CES/ip_map.yaml", 'r')
                     mapping = yaml.safe_load(stream)
@@ -252,8 +253,7 @@ def lookForPolicy(policyList, pkt):
                                 if user.get("method") == ue.get("method") and user.get("user") == ue.get("user"): #same method and same id (imsi or token)
                                     addEntries(user.get("actual_ip", policy.get("ip"), policy.get("port")))
                                     #add bi-directional entry if icmp packet
-                                    if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":
-                                        addEntry(dst, src, sport)
+                                    addEntry(dst, src, sport)
             found = True
             break
     
