@@ -31,9 +31,7 @@ def mod_detector():
             #log:
             #print("PATH=[{}] FILENAME=[{}] EVENT_TYPES={}".format(path, filename, type_names))
 
-
 #find out specific modifications per policy
-#[!] TOADD: ip management when auth \wo ip
 def mod_manager():
     global policies_list
     tmp = policies_list
@@ -65,24 +63,28 @@ def mod_manager():
                 for ue in policy.get("allowed_users"):
                     if ue not in policy_tmp.get("allowed_users"):
                         print("[!] UE_MODIFICATIONS_ADD")
-                        if ue.get("method") == "ip":
-                            addEntries(ue.get("user"), policy.get("ip"), policy.get("port"))
-                            #check bidirectional traffic -> sport?
-                        else: #imsi or token
-                            stream = open("../CES/ip_map.yaml", 'r')
-                            mapping = yaml.safe_load(stream)
-                            for service in mapping:
-                                if service.get("serviceName") == policy.get("serviceName") and service.get("ip") == policy.get("ip"): #same service and ip
-                                    for user in service.get("allowed_users"):
+                        stream = open("../CES/ip_map.yaml", 'r')
+                        mapping = yaml.safe_load(stream)
+                        for service in mapping:
+                            if service.get("serviceName") == policy.get("serviceName") and service.get("ip") == policy.get("ip"): #same service and ip
+                                for user in service.get("allowed_users"):
+                                    if ue.get("method") == "ip":
+                                        addEntries(ue.get("user"), policy.get("ip"), policy.get("port"))
+                                        #add bi-directional entry
+                                        addEntries(policy.get("ip"), user.get("actual_ip"), user.get("sport"))
+                                    else: #imsi or token
                                         if user.get("method") == ue.get("method") and user.get("user") == ue.get("user"): #same method and same id (imsi or token)
-                                            addEntries(user.get("actual_ip", policy.get("ip"), policy.get("port")))
-                                            #check bidirectional traffic -> sport?
+                                            addEntries(user.get("actual_ip"), policy.get("ip"), policy.get("port"))
+                                            #add bi-directional entry 
+                                            addEntries(policy.get("ip"), user.get("actual_ip"), user.get("sport"))
                 #del
                 for ue in policy_tmp.get("allowed_users"):
                     if ue not in policy.get("allowed_users"):
                         print("[!] UE_MODIFICATIONS_DEL")
                         if ue.get("method") == "ip":
                             delUE(ue.get("user") , policy.get("ip"))
+                            #del bi-directional entry
+                            delUE(policy.get("ip"), ue.get("user"))
                         else: #imsi or token
                             stream = open("../CES/ip_map.yaml", 'r')
                             mapping = yaml.safe_load(stream)
@@ -91,6 +93,8 @@ def mod_manager():
                                     for user in service.get("allowed_users"):
                                         if user.get("method") == ue.get("method") and user.get("user") == ue.get("user"): #same method and same id (imsi or token)
                                             delUE(user.get("actual_ip"), policy.get("ip"))
+                                            #del bi-directional entry
+                                            delUE(policy.get("ip"), user.get("actual_ip"))
 
                 if policy.get("tee") != policy_tmp.get("tee"):
                     print("[!] TEE_MODIFICATIONS")
@@ -114,13 +118,11 @@ def mod_manager():
     print("[!] New policies_list: ")
     print(policies_list)
 
-
 #del policies when service not found
 def delPolicies(ip):
     for te in sh.Table_entry("my_ingress.ipv4_exact").read():
         if te.match["hdr.ipv4.srcAddr"] == ip:
             te.delete()
-
 
 #edit service ip
 def editIPPolicies(old_ip, new_ip, port):
@@ -128,12 +130,7 @@ def editIPPolicies(old_ip, new_ip, port):
         if te.match["hdr.ipv4.srcAddr"] == old_ip:
             src_addr = te.match["hdr.ipv4.src_addr"]
             te.delete()
-            te = sh.TableEntry('my_ingress.ipv4_exact')(action='my_ingress.ipv4_forward')
-            te.match["hdr.ipv4.srcAddr"] = src_addr
-            te.match["hdr.ipv4.dstAddr"] = new_ip
-            te.action["port"] = port
-            te.insert()
-
+            addEntry(src_addr, new_ip, port)
 
 #edit service port
 def editPortPolicies(ip, new_port):
@@ -141,19 +138,13 @@ def editPortPolicies(ip, new_port):
         if te.match["hdr.ipv4.srcAddr"] == ip:
             src_addr = te.match["hdr.ipv4.src_addr"]
             te.delete()
-            te = sh.TableEntry('my_ingress.ipv4_exact')(action='my_ingress.ipv4_forward')
-            te.match["hdr.ipv4.srcAddr"] = src_addr
-            te.match["hdr.ipv4.dstAddr"] = ip
-            te.action["port"] = new_port
-            te.insert()
-
+            addEntry(src_addr, ip, new_port)
 
 #delete a policy (old service, user not allowed anymore)
 def delUE(ue_ip, service_ip):
     for te in table_entry["my_ingress.ipv4_exact"].read():
         if te.match["hdr.ipv4.srcAddr"] == ue_ip and te.match["hdr.ipv4.dstAddr"] == service_ip:
             te.delete()
-
 
 #add a new entry
 def addEntry(ip_src, ip_dst, port):
@@ -163,7 +154,6 @@ def addEntry(ip_src, ip_dst, port):
     te.action["port"] = str(port)
     te.insert()
     print("[!] New entry added")
-
 
 #update policies_list
 def getPolicies():
@@ -181,7 +171,6 @@ def getPolicies():
     #    while line:
     #        policies.append(line.split(" "))
     #        line = f.readline()
-
 
 #if policyDB is managed as a true db
 def getPoliciesDB(packet):
@@ -202,7 +191,6 @@ def getPoliciesDB(packet):
 
     except Error as e:
         print(e)
-
 
 #look for policy and add new entries if found (when a packet is received)
 def lookForPolicy(policyList, pkt):
@@ -228,7 +216,7 @@ def lookForPolicy(policyList, pkt):
         print("\n[!] Protocol unknown\n")
         return
 
-    print("src: " + src)
+    print("\nsrc: " + src)
     print("dst: " + dst)
     print("sport: " + str(sport))
     print("dport: " + str(dport))
@@ -252,7 +240,7 @@ def lookForPolicy(policyList, pkt):
                             for user in service.get("allowed_users"):
                                 if user.get("method") == ue.get("method") and user.get("user") == ue.get("user"): #same method and same id (imsi or token)
                                     addEntries(user.get("actual_ip", policy.get("ip"), policy.get("port")))
-                                    #add bi-directional entry if icmp packet
+                                    #add bi-directional entry
                                     addEntry(dst, src, sport)
             found = True
             break
@@ -261,7 +249,6 @@ def lookForPolicy(policyList, pkt):
         #packet drop
         packet = None
         print("[!] Packet dropped\n\n\n")
-
 
 #handle a just received packet
 def packetHandler(streamMessageResponse):
@@ -287,13 +274,8 @@ def packetHandler(streamMessageResponse):
         elif pkt_ip != None:
             print("[!] Packet received: " + pkt_src + "-->" + pkt_dst)
             lookForPolicy(policies_list, pkt)
-        #elif pkt_dns != None:
-        #    print("DNS - to remove (debug purpose)")
-        #elif pkt_arp != None:
-        #    print("ARP - to remove (debug purpose)")
         else:
             print("[!] No needed layer (ARP, DNS, ...)")
-
 
 #setup connection \w switch, sets policies_list, starts mod_detector thread and listens for new packets
 def controller():
@@ -317,7 +299,6 @@ def controller():
     #te.match["hdr.ipv4.dstAddr"] = "192.187.3.7"
     #te.insert()
     #print("[!] Control packets to be dropped")
-
 
     #get and save policies_list    
     getPolicies()

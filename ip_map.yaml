@@ -6,13 +6,16 @@
   method: 'ip' #other auth method: IP, SPA, ...
   user: '10.0.0.1'
   actual_ip: '10.0.0.1'
+  sport: 53
  -
   method: 'imsi' #other auth method: IP, SPA, ...
   user: '310170845466094'
   actual_ip: '10.0.0.3'
+  sport: 22
  -
   method: 'imsi'
   user: '5021301234567894'
   actual_ip: '10.0.0.6'
+  sport: 80
 
 #...
