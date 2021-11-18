@@ -48,12 +48,12 @@ def mod_manager():
                 if policy.get("ip") != policy_tmp.get("ip"):
                     print("[!] IP_MODIFICATIONS")
                     print("[!] Editing policies IP...")
-                    editIPPolicies(policy_tmp.get("ip"), policy.get("ip"), policy.get("port"))
-        
+                    editIPPolicies(policy_tmp.get("ip"), policy.get("ip"), policy.get("port")) #also bidirectional entry
+
                 if policy.get("port") != policy_tmp.get("port"):
                     print("[!] PORT_MODIFICATIONS")
                     print("[!] Editing policies Port...")
-                    editPortPolicies(policy_tmp.get("ip"), policy_tmp.get("port"))
+                    editPortPolicies(policy_tmp.get("ip"), policy_tmp.get("port")) #bidirectional entry not needed
 
                 if policy.get("protocol") != policy_tmp.get("protocol"):
                     print("[!] PROTOCOL_MODIFICATIONS")
@@ -121,18 +121,29 @@ def mod_manager():
 #del policies when service not found
 def delPolicies(ip):
     for te in sh.Table_entry("my_ingress.ipv4_exact").read():
-        if te.match["hdr.ipv4.srcAddr"] == ip:
+        if te.match["hdr.ipv4.dstAddr"] == ip:
             te.delete()
 
-#edit service ip
+#edit service ip (also bidirectional entry)
 def editIPPolicies(old_ip, new_ip, port):
     for te in sh.TableEntry("my_ingress.ipv4_exact").read():
-        if te.match["hdr.ipv4.srcAddr"] == old_ip:
-            src_addr = te.match["hdr.ipv4.src_addr"]
+        if te.match["hdr.ipv4.dstAddr"] == old_ip:
+            src_addr = te.match["hdr.ipv4.srcAddr"]
             te.delete()
             addEntry(src_addr, new_ip, port)
 
-#edit service port
+    for te in sh.TableEntry("my_ingress.ipv4_exact").read():
+        if te.match["hdr.ipv4.srcAddr"] == old_ip:
+            dst_addr = te.match["hdr.ipv4.dstAddr"]
+            te.delete()
+            stream = open("../CES/ip_map.yaml", 'r')
+            mapping = yaml.safe_load(stream)
+            for service in mapping:
+                for user in service.get("allowed_users"):
+                    if user.get("actual_ip") == dst_addr:
+                        addEntry(new_ip, dst_addr, user.get("sport"))
+
+#edit service port (bidirectional entry not needed -> sport is not necessary)
 def editPortPolicies(ip, new_port):
     for te in sh.TableEntry("my_ingress.ipv4_exact").read():
         if te.match["hdr.ipv4.srcAddr"] == ip:
