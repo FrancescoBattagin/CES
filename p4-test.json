@@ -10,8 +10,8 @@
       "id" : 1,
       "fields" : [
         ["ingress_port", 9, false],
-        ["egress_spec", 9, false],
-        ["egress_port", 9, false],
+        ["egress_spec", 16, false],
+        ["egress_port", 16, false],
         ["instance_type", 32, false],
         ["packet_length", 32, false],
         ["enq_timestamp", 32, false],
@@ -25,7 +25,7 @@
         ["checksum_error", 1, false],
         ["parser_error", 32, false],
         ["priority", 3, false],
-        ["_padding", 3, false]
+        ["_padding", 5, false]
       ]
     },
     {
@@ -248,7 +248,7 @@
       "runtime_data" : [
         {
           "name" : "port",
-          "bitwidth" : 9
+          "bitwidth" : 16
         }
       ],
       "primitives" : [
