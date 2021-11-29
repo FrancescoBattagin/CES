@@ -53,7 +53,7 @@ def packetHandler(packets):
 
 #print("\n\n\n\n\n\nnow test /w a packet")
 
-packet = MyTag(imsi = 5021301234567894)/IP(ttl = 100, dst = '10.0.2.15')/TCP(dport=53, flags='S')
+packet = IP(ttl = 100, dst = '10.0.2.15')/TCP(dport=53, flags='S')/MyTag(imsi = 5021301234567894)
 
 receiver = threading.Thread(target = receive)
 receiver.start()
