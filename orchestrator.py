@@ -68,20 +68,15 @@ def mod_manager():
                         for service in mapping:
                             if service.get("serviceName") == policy.get("serviceName") and service.get("ip") == policy.get("ip"): #same service and ip
                                 for user in service.get("allowed_users"):
-                                    if ue.get("method") == "ip":
-                                        addEntries(ue.get("user"), policy.get("ip"), policy.get("port"))
-                                        #add bi-directional entry
+                                    if user.get("method") == ue.get("method") and user.get("user") == ue.get("user"): #same method and same id (ip, imsi or token)
+                                        addEntries(user.get("actual_ip"), policy.get("ip"), policy.get("port"))
+                                        #add bi-directional entry 
                                         addEntries(policy.get("ip"), user.get("actual_ip"), user.get("sport"))
-                                    else: #imsi or token
-                                        if user.get("method") == ue.get("method") and user.get("user") == ue.get("user"): #same method and same id (imsi or token)
-                                            addEntries(user.get("actual_ip"), policy.get("ip"), policy.get("port"))
-                                            #add bi-directional entry 
-                                            addEntries(policy.get("ip"), user.get("actual_ip"), user.get("sport"))
                 #del
                 for ue in policy_tmp.get("allowed_users"):
                     if ue not in policy.get("allowed_users"):
                         print("[!] UE_MODIFICATIONS_DEL")
-                        if ue.get("method") == "ip":
+                        if ue.get("method") == "ip": #ip already available, no need to check mapping
                             delUE(ue.get("user") , policy.get("ip"))
                             #del bi-directional entry
                             delUE(policy.get("ip"), ue.get("user"))
