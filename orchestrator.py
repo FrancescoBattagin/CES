@@ -40,7 +40,6 @@ def mod_manager():
     found = False
 
     for policy_tmp in tmp:
-
         for policy in policies_list:
             if policy.get("serviceName") == policy_tmp.get("serviceName"):
                 found = True
@@ -65,18 +64,23 @@ def mod_manager():
                         print("[!] UE_MODIFICATIONS_ADD")
                         stream = open("../CES/ip_map.yaml", 'r')
                         mapping = yaml.safe_load(stream)
-                        for service in mapping:
+                        for service in mapping: #leverage on ip_map to get sport for bidirectional traffic
                             if service.get("serviceName") == policy.get("serviceName") and service.get("ip") == policy.get("ip"): #same service and ip
                                 for user in service.get("allowed_users"):
-                                    if user.get("method") == ue.get("method") and user.get("user") == ue.get("user"): #same method and same id (ip, imsi or token)
-                                        addEntries(user.get("actual_ip"), policy.get("ip"), policy.get("port"))
+                                    if ue.get("method") == "ip" and user.get("actual_ip") == ue.get("user"): #ip already available
+                                        addEntry(ue.get("actual_ip"), policy.get("ip"), policy.get("port"))
                                         #add bi-directional entry 
-                                        addEntries(policy.get("ip"), user.get("actual_ip"), user.get("sport"))
+                                        addEntries(policy.get("ip"), ue.get("actual_ip"), user.get("sport"))
+                                    else:
+                                        if (user.get("method") == "imsi" and user.get("imsi") == ue.get("user")) or (user.get("method") == "token" and user.get("token") == ue.get("user")): #same method and same id (imsi or token)
+                                            addEntry(user.get("actual_ip"), policy.get("ip"), policy.get("port"))
+                                            #add bi-directional entry 
+                                            addEntry(policy.get("ip"), user.get("actual_ip"), user.get("sport"))
                 #del
                 for ue in policy_tmp.get("allowed_users"):
                     if ue not in policy.get("allowed_users"):
                         print("[!] UE_MODIFICATIONS_DEL")
-                        if ue.get("method") == "ip": #ip already available, no need to check mapping
+                        if ue.get("method") == "ip": #ip already available, no need to check mapping to find ip to be deleted
                             delUE(ue.get("user") , policy.get("ip"))
                             #del bi-directional entry
                             delUE(policy.get("ip"), ue.get("user"))
@@ -86,7 +90,7 @@ def mod_manager():
                             for service in mapping:
                                 if service.get("serviceName") == policy.get("serviceName") and service.get("ip") == policy.get("ip"): #same service and ip
                                     for user in service.get("allowed_users"):
-                                        if user.get("method") == ue.get("method") and user.get("user") == ue.get("user"): #same method and same id (imsi or token)
+                                        if (user.get("method") == "imsi" and user.get("imsi") == ue.get("user")) or (user.get("method") == "token" and user.get("token") == ue.get("user")): #same method and same id (imsi or token)
                                             delUE(user.get("actual_ip"), policy.get("ip"))
                                             #del bi-directional entry
                                             delUE(policy.get("ip"), user.get("actual_ip"))
@@ -245,7 +249,7 @@ def lookForPolicy(policyList, pkt):
                         if service.get("serviceName") == policy.get("serviceName") and service.get("ip") == policy.get("ip"): #same service and ip
                             for user in service.get("allowed_users"):
                                 if user.get("method") == ue.get("method") and user.get("user") == ue.get("user"): #same method and same id (imsi or token)
-                                    addEntries(user.get("actual_ip", policy.get("ip"), policy.get("port")))
+                                    addEntry(user.get("actual_ip", policy.get("ip"), policy.get("port")))
                                     #add bi-directional entry
                                     addEntry(dst, src, sport)
             found = True
@@ -268,12 +272,10 @@ def packetHandler(streamMessageResponse):
         if pkt.getlayer(IP) != None:
             pkt_src = pkt.getlayer(IP).src
             pkt_dst = pkt.getlayer(IP).dst
-        ether_type = pkt.getlayer(Ether).type
+        #ether_type = pkt.getlayer(Ether).type
         pkt_icmp = pkt.getlayer(ICMP)
         pkt_ip = pkt.getlayer(IP)
-        pkt_arp = pkt.getlayer(ARP)
-        pkt_dns = pkt.getlayer(DNS)
-
+        
         if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":
             print("[!] Ping from: " + pkt_src)
             lookForPolicy(policies_list, pkt)
