@@ -3,6 +3,44 @@ pkg_info {
 }
 tables {
   preamble {
+    id: 48885138
+    name: "my_ingress.ipv4_tcp_open_forward"
+    alias: "ipv4_tcp_open_forward"
+  }
+  match_fields {
+    id: 1
+    name: "hdr.ipv4.srcAddr"
+    bitwidth: 32
+    match_type: EXACT
+  }
+  match_fields {
+    id: 2
+    name: "hdr.ipv4.dstAddr"
+    bitwidth: 32
+    match_type: EXACT
+  }
+  match_fields {
+    id: 3
+    name: "hdr.tcp.dstPort"
+    bitwidth: 16
+    match_type: EXACT
+  }
+  action_refs {
+    id: 23031804
+  }
+  action_refs {
+    id: 28045422
+  }
+  action_refs {
+    id: 28026995
+  }
+  action_refs {
+    id: 21257015
+  }
+  size: 1024
+}
+tables {
+  preamble {
     id: 44298824
     name: "my_ingress.ipv4_tcp_forward"
     alias: "ipv4_tcp_forward"
@@ -21,7 +59,51 @@ tables {
   }
   match_fields {
     id: 3
+    name: "hdr.tcp.srcPort"
+    bitwidth: 16
+    match_type: EXACT
+  }
+  match_fields {
+    id: 4
     name: "hdr.tcp.dstPort"
+    bitwidth: 16
+    match_type: EXACT
+  }
+  action_refs {
+    id: 23031804
+  }
+  action_refs {
+    id: 28045422
+  }
+  action_refs {
+    id: 28026995
+  }
+  action_refs {
+    id: 21257015
+  }
+  size: 1024
+}
+tables {
+  preamble {
+    id: 41931858
+    name: "my_ingress.ipv4_udp_open_forward"
+    alias: "ipv4_udp_open_forward"
+  }
+  match_fields {
+    id: 1
+    name: "hdr.ipv4.srcAddr"
+    bitwidth: 32
+    match_type: EXACT
+  }
+  match_fields {
+    id: 2
+    name: "hdr.ipv4.dstAddr"
+    bitwidth: 32
+    match_type: EXACT
+  }
+  match_fields {
+    id: 3
+    name: "hdr.udp.dstPort"
     bitwidth: 16
     match_type: EXACT
   }
@@ -59,12 +141,56 @@ tables {
   }
   match_fields {
     id: 3
+    name: "hdr.udp.srcPort"
+    bitwidth: 16
+    match_type: EXACT
+  }
+  match_fields {
+    id: 4
     name: "hdr.udp.dstPort"
     bitwidth: 16
     match_type: EXACT
   }
   action_refs {
     id: 23031804
+  }
+  action_refs {
+    id: 28045422
+  }
+  action_refs {
+    id: 28026995
+  }
+  action_refs {
+    id: 21257015
+  }
+  size: 1024
+}
+tables {
+  preamble {
+    id: 44738529
+    name: "my_ingress.ipv6_tcp_open_forward"
+    alias: "ipv6_tcp_open_forward"
+  }
+  match_fields {
+    id: 1
+    name: "hdr.ipv6.srcAddr"
+    bitwidth: 128
+    match_type: EXACT
+  }
+  match_fields {
+    id: 2
+    name: "hdr.ipv6.dstAddr"
+    bitwidth: 128
+    match_type: EXACT
+  }
+  match_fields {
+    id: 3
+    name: "hdr.tcp.dstPort"
+    bitwidth: 16
+    match_type: EXACT
+  }
+  action_refs {
+    id: 29998481
   }
   action_refs {
     id: 28045422
@@ -97,7 +223,51 @@ tables {
   }
   match_fields {
     id: 3
+    name: "hdr.tcp.srcPort"
+    bitwidth: 16
+    match_type: EXACT
+  }
+  match_fields {
+    id: 4
     name: "hdr.tcp.dstPort"
+    bitwidth: 16
+    match_type: EXACT
+  }
+  action_refs {
+    id: 29998481
+  }
+  action_refs {
+    id: 28045422
+  }
+  action_refs {
+    id: 28026995
+  }
+  action_refs {
+    id: 21257015
+  }
+  size: 1024
+}
+tables {
+  preamble {
+    id: 47643676
+    name: "my_ingress.ipv6_udp_open_forward"
+    alias: "ipv6_udp_open_forward"
+  }
+  match_fields {
+    id: 1
+    name: "hdr.ipv6.srcAddr"
+    bitwidth: 128
+    match_type: EXACT
+  }
+  match_fields {
+    id: 2
+    name: "hdr.ipv6.dstAddr"
+    bitwidth: 128
+    match_type: EXACT
+  }
+  match_fields {
+    id: 3
+    name: "hdr.udp.dstPort"
     bitwidth: 16
     match_type: EXACT
   }
@@ -135,6 +305,12 @@ tables {
   }
   match_fields {
     id: 3
+    name: "hdr.udp.srcPort"
+    bitwidth: 16
+    match_type: EXACT
+  }
+  match_fields {
+    id: 4
     name: "hdr.udp.dstPort"
     bitwidth: 16
     match_type: EXACT
@@ -176,11 +352,6 @@ actions {
   }
   params {
     id: 1
-    name: "dstAddr"
-    bitwidth: 48
-  }
-  params {
-    id: 2
     name: "port"
     bitwidth: 16
   }
@@ -193,11 +364,6 @@ actions {
   }
   params {
     id: 1
-    name: "dstAddr"
-    bitwidth: 48
-  }
-  params {
-    id: 2
     name: "port"
     bitwidth: 16
   }

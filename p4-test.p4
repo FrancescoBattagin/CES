@@ -162,20 +162,20 @@ control my_ingress(inout headers_t hdr,
         mark_to_drop(standard_metadata);
     }
 
-    action ethernet_forward(EthernetAddress dstAddr){
+    /*action ethernet_forward(EthernetAddress dstAddr){
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = dstAddr;
-    }
+    }*/
 
-    action ipv4_forward(EthernetAddress dstAddr, egressSpec_t port) {
+    action ipv4_forward(/*EthernetAddress dstAddr,*/ egressSpec_t port) {
         standard_metadata.egress_spec = port;
-        ethernet_forward(dstAddr);
+        /*ethernet_forward(dstAddr);*/
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
 
-    action ipv6_forward(EthernetAddress dstAddr, egressSpec_t port){
+    action ipv6_forward(/*EthernetAddress dstAddr,*/ egressSpec_t port){
         standard_metadata.egress_spec = port;
-        ethernet_forward(dstAddr);
+        /*ethernet_forward(dstAddr);*/
         hdr.ipv6.hopLimit = hdr.ipv6.hopLimit - 1;//This is similar to the ttl in ipv4, it time out when it is 0
     }
 
@@ -184,7 +184,7 @@ control my_ingress(inout headers_t hdr,
     }
 
 
-    table ipv4_tcp_forward {
+    table ipv4_tcp_open_forward {
         key = {
             hdr.ipv4.srcAddr: exact;
             hdr.ipv4.dstAddr: exact;
@@ -200,7 +200,25 @@ control my_ingress(inout headers_t hdr,
         default_action = send_to_controller();
     }
 
-    table ipv4_udp_forward {
+    table ipv4_tcp_forward {
+        key = {
+            hdr.ipv4.srcAddr: exact;
+            hdr.ipv4.dstAddr: exact;
+            hdr.tcp.srcPort: exact;
+            hdr.tcp.dstPort: exact;
+        }
+        actions = {
+            ipv4_forward;
+            drop;
+            send_to_controller;
+            NoAction;
+        }
+        size = 1024;
+        default_action = send_to_controller();
+    }
+
+
+    table ipv4_udp_open_forward {
         key = {
             hdr.ipv4.srcAddr: exact;
             hdr.ipv4.dstAddr: exact;
@@ -216,7 +234,24 @@ control my_ingress(inout headers_t hdr,
         default_action = send_to_controller();
     }
 
-    table ipv6_tcp_forward {
+    table ipv4_udp_forward {
+        key = {
+            hdr.ipv4.srcAddr: exact;
+            hdr.ipv4.dstAddr: exact;
+            hdr.udp.srcPort: exact;
+            hdr.udp.dstPort: exact;
+        }
+        actions = {
+            ipv4_forward;
+            drop;
+            send_to_controller;
+            NoAction;
+        }
+        size = 1024;
+        default_action = send_to_controller();
+    }
+
+    table ipv6_tcp_open_forward {
         key = {
             hdr.ipv6.srcAddr: exact;
             hdr.ipv6.dstAddr: exact;
@@ -232,10 +267,44 @@ control my_ingress(inout headers_t hdr,
         default_action = send_to_controller();
     }
 
+    table ipv6_tcp_forward {
+        key = {
+            hdr.ipv6.srcAddr: exact;
+            hdr.ipv6.dstAddr: exact;
+            hdr.tcp.srcPort: exact;
+            hdr.tcp.dstPort: exact;
+        }
+        actions = {
+            ipv6_forward;
+            drop;
+            send_to_controller;
+            NoAction;
+        }
+        size = 1024;
+        default_action = send_to_controller();
+    }
+
+    table ipv6_udp_open_forward {
+        key = {
+            hdr.ipv6.srcAddr: exact;
+            hdr.ipv6.dstAddr: exact;
+            hdr.udp.dstPort: exact;
+        }
+        actions = {
+            ipv6_forward;
+            drop;
+            send_to_controller;
+            NoAction;
+        }
+        size = 1024;
+        default_action = send_to_controller();
+    }
+
     table ipv6_udp_forward {
         key = {
             hdr.ipv6.srcAddr: exact;
             hdr.ipv6.dstAddr: exact;
+            hdr.udp.srcPort: exact;
             hdr.udp.dstPort: exact;
         }
         actions = {
@@ -256,6 +325,10 @@ control my_ingress(inout headers_t hdr,
             else if (hdr.udp.isValid()){
                 ipv4_udp_forward.apply();
             }
+            else{ /*here to keep those tables even if non-used*/
+                ipv4_tcp_open_forward.apply();
+                ipv4_udp_open_forward.apply();
+            }
         }
         else if (hdr.ipv6.isValid()){
             if (hdr.tcp.isValid()){
@@ -263,6 +336,10 @@ control my_ingress(inout headers_t hdr,
             }
             else if (hdr.udp.isValid()){
                 ipv6_udp_forward.apply();
+            }
+            else{ /*here to keep those tables even if non-used*/
+                ipv6_tcp_open_forward.apply();
+                ipv6_udp_open_forward.apply();
             }
         }
         else {

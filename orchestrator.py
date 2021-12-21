@@ -3,7 +3,7 @@ import os
 import sys
 import p4runtime_sh.shell as sh
 from p4runtime_sh.shell import PacketIn
-from time import sleep
+import time
 from scapy.all import *
 import yaml
 import threading
@@ -11,7 +11,6 @@ import inotify.adapters
 
 # No need to import p4runtime_lib
 # import p4runtime_lib.bmv2
-
 
 #ipv6 not supported yet
 
@@ -70,14 +69,14 @@ def mod_manager():
                             if service.get("serviceName") == policy.get("serviceName") and service.get("ip") == policy.get("ip"): #same service and ip
                                 for user in service.get("allowed_users"):
                                     if ue.get("method") == "ip" and user.get("actual_ip") == ue.get("user"): #ip already available
-                                        addEntry(ue.get("actual_ip"), policy.get("ip"), policy.get("port"), policy.get("protocol"))
+                                        addEntry(ue.get("actual_ip"), policy.get("ip"), policy.get("port"), policy.get("protocol"), 2)
                                         #add bi-directional entry 
-                                        addEntries(policy.get("ip"), ue.get("actual_ip"), user.get("sport"), policy.get("protocol"))
+                                        addEntry(policy.get("ip"), ue.get("actual_ip"), user.get("sport"), policy.get("protocol"), 1)
                                     else:
                                         if (user.get("method") == "imsi" and user.get("imsi") == ue.get("user")) or (user.get("method") == "token" and user.get("token") == ue.get("user")): #same method and same id (imsi or token)
-                                            addEntry(user.get("actual_ip"), policy.get("ip"), policy.get("port"), policy.get("protocol"))
+                                            addEntry(user.get("actual_ip"), policy.get("ip"), policy.get("port"), policy.get("protocol"), 2)
                                             #add bi-directional entry 
-                                            addEntry(policy.get("ip"), user.get("actual_ip"), user.get("sport"), policy.get("protocol"))
+                                            addEntry(policy.get("ip"), user.get("actual_ip"), user.get("sport"), policy.get("protocol"), 1)
                 #del
                 for ue in policy_tmp.get("allowed_users"):
                     if ue not in policy.get("allowed_users"):
@@ -136,36 +135,40 @@ def editIPPolicies(old_ip, new_ip, port, protocol):
         for te in sh.TableEntry("my_ingress.ipv4_tcp_forward").read():
             if te.match["hdr.ipv4.dstAddr"] == old_ip:
                 src_addr = te.match["hdr.ipv4.srcAddr"]
+                egress_port = te.action["port"]
                 te.delete()
-                addEntry(src_addr, new_ip, port, "TCP")
+                addEntry(src_addr, new_ip, port, "TCP", egress_port)
 
         for te in sh.TableEntry("my_ingress.ipv4_tcp_forward").read():
             if te.match["hdr.ipv4.srcAddr"] == old_ip:
                 dst_addr = te.match["hdr.ipv4.dstAddr"]
+                egress_port = te.action["port"]
                 te.delete()
                 stream = open("../CES/ip_map.yaml", 'r')
                 mapping = yaml.safe_load(stream)
                 for service in mapping:
                     for user in service.get("allowed_users"):
                         if user.get("actual_ip") == dst_addr:
-                            addEntry(new_ip, dst_addr, user.get("sport"), "TCP")
+                            addEntry(new_ip, dst_addr, user.get("sport"), "TCP", egress_port)
     else:
         for te in sh.TableEntry("my_ingress.ipv4_udp_forward").read():
             if te.match["hdr.ipv4.dstAddr"] == old_ip:
                 src_addr = te.match["hdr.ipv4.srcAddr"]
+                egress_port = te.action["port"]
                 te.delete()
-                addEntry(src_addr, new_ip, port, "UDP")
+                addEntry(src_addr, new_ip, port, "UDP", egress_port)
 
         for te in sh.TableEntry("my_ingress.ipv4_udp_forward").read():
             if te.match["hdr.ipv4.srcAddr"] == old_ip:
                 dst_addr = te.match["hdr.ipv4.dstAddr"]
+                egress_port = te.action["port"]
                 te.delete()
                 stream = open("../CES/ip_map.yaml", 'r')
                 mapping = yaml.safe_load(stream)
                 for service in mapping:
                     for user in service.get("allowed_users"):
                         if user.get("actual_ip") == dst_addr:
-                            addEntry(new_ip, dst_addr, user.get("sport"), "UDP")
+                            addEntry(new_ip, dst_addr, user.get("sport"), "UDP", egress_port)
 
 #edit service port (bidirectional entry not needed -> sport is not necessary)
 def editPortPolicies(ip, new_port, protocol):
@@ -173,14 +176,15 @@ def editPortPolicies(ip, new_port, protocol):
         for te in sh.TableEntry("my_ingress.ipv4_tcp_forward").read():
             if te.match["hdr.ipv4.srcAddr"] == ip:
                 src_addr = te.match["hdr.ipv4.src_addr"]
+                egress_port = te.action["port"]
                 te.delete()
-                addEntry(src_addr, ip, new_port, "TCP")
+                addEntry(src_addr, ip, new_port, "TCP", egress_port)
     else:
         for te in sh.TableEntry("my_ingress.ipv4_udp_forward").read():
             if te.match["hdr.ipv4.srcAddr"] == ip:
                 src_addr = te.match["hdr.ipv4.src_addr"]
                 te.delete()
-                addEntry(src_addr, ip, new_port, "UDP")
+                addEntry(src_addr, ip, new_port, "UDP", egress_port)
 
 #delete a policy (old service, user not allowed anymore)
 def delUE(ue_ip, service_ip, protocol):
@@ -193,20 +197,73 @@ def delUE(ue_ip, service_ip, protocol):
             if te.match["hdr.ipv4.srcAddr"] == ue_ip and te.match["hdr.ipv4.dstAddr"] == service_ip:
                 te.delete()
 
-#add a new entry
-def addEntry(ip_src, ip_dst, port, protocol):
+#add a new tmp "open" entry
+def addOpenEntry(ip_src, ip_dst, port, protocol, egress_port):
+    if protocol == "TCP":
+        te = sh.TableEntry('my_ingress.ipv4_tcp_open_forward')(action='my_ingress.ipv4_forward')
+        te.match["hdr.ipv4.srcAddr"] = ip_src
+        te.match["hdr.ipv4.dstAddr"] = ip_dst
+        te.match["hdr.tcp.dstPort"] = str(port)
+        te.action["port"] = str(egress_port)
+        te.insert()
+        print("[!] New open entry added")
+        reply = threading.Thread(target = waitForReply(ip_dst, ip_src, port, "TCP")) #another thread not to block orchestrator
+        reply.start()
+        te.delete() #entry to be deleted anyway
+    else:
+        te = sh.TableEntry('my_ingress.ipv4_udp_open_forward')(action='my_ingress.ipv4_forward')
+        te.match["hdr.ipv4.srcAddr"] = ip_src
+        te.match["hdr.ipv4.dstAddr"] = ip_dst
+        te.match["hdr.udp.dstPort"] = str(port)
+        te.action["port"] = str(egress_port)
+        te.insert()
+        print("[!] New open entry added")
+        reply = threading.Thread(target = waitForReply(ip_dst, ip_src, port, "UDP")) #another thread not to block orchestrator
+        reply.start()
+        te.delete() #entry to be deleted anyway
+
+def waitForReply(ip_dst, ip_src, dport, protocol):
+    t0 = time.time()
+    while True:
+        packets = None
+        print("Waiting for reply")
+        packet_in = sh.PacketIn()
+        packets = packet_in.sniff()
+        for streamMessageResponse in packets:
+            packet = streamMessageResponse.packet
+            if streamMessageResponse.WhichOneof('update') =='packet':
+                packet_payload = packet.payload
+                pkt = Ether(_pkt=packet.payload)
+                if pkt.getlayer(IP) != None:
+                    pkt_src = pkt.getlayer(IP).src
+                    pkt_dst = pkt.getlayer(IP).dst
+                    if pkt_src == ip_dst and pkt_dst == ip_src:
+                        if pkt.getlayer(TCP) != None:
+                            if dport == pkt.getlayer(TCP).src:
+                                addEntry(ip_src, ip_dst, dport, pkt.getlayer(TCP).dst, "TCP", 2)
+                                addEntry(ip_dst, ip_src, pkt.getlayer(TCP).dst, dport, "TCP", 1)
+                        return
+        if time.time() - t0 >= 2.0: #if 2sec or more
+            return
+
+#add a new "strict" (sport -> microsegmentation) entry
+def addEntry(ip_src, ip_dst, dport, sport, protocol, egress_port):
     if protocol == "TCP":
         te = sh.TableEntry('my_ingress.ipv4_tcp_forward')(action='my_ingress.ipv4_forward')
         te.match["hdr.ipv4.srcAddr"] = ip_src
         te.match["hdr.ipv4.dstAddr"] = ip_dst
-        te.action["port"] = str(port)
+        te.match["hdr.tcp.dstPort"] = str(dport)
+        te.match["hdr.tcp.srcPort"] = str(sport)
+        te.action["port"] = str(egress_port)
         te.insert()
         print("[!] New entry added")
     else:
         te = sh.TableEntry('my_ingress.ipv4_udp_forward')(action='my_ingress.ipv4_forward')
         te.match["hdr.ipv4.srcAddr"] = ip_src
         te.match["hdr.ipv4.dstAddr"] = ip_dst
-        te.action["port"] = str(port)
+        te.match["hdr.udp.dstPort"] = str(dport)
+        te.match["hdr.udp.srcPort"] = str(sport)
+        te.action["port"] = str(egress_port)
         te.insert()
         print("[!] New entry added")
 
@@ -217,15 +274,6 @@ def getPolicies():
     global policies_list 
     stream = open("../CES/policiesDB.yaml", 'r')
     policies_list = yaml.safe_load(stream)
-    
-    #if policyDB is a .txt file
-    #policies = []
-    #with open("policiesDB.txt", 'r') as f:
-    #    print("policiesDB.txt opened")
-    #    line = f.readline()
-    #    while line:
-    #        policies.append(line.split(" "))
-    #        line = f.readline()
 
 #if policyDB is managed as a true db
 def getPoliciesDB(packet):
@@ -253,12 +301,18 @@ def lookForPolicy(policyList, pkt):
     print("[!] Policies: \n")
     print(policyList)
     
-    src = pkt.getlayer(IP).src
-    dst = pkt.getlayer(IP).dst
-    
+    pkt_ip = pkt.getlayer(IP)
+    if pkt_ip != None:
+        src = pkt_ip.src
+        dst = pkt_ip.dst
+    else:
+        print("\n[!] IP layer not present")
+        return
+
     pkt_tcp = pkt.getlayer(TCP)
     pkt_udp = pkt.getlayer(UDP)
     protocol = ""
+
     if pkt_tcp != None:
         sport = pkt_tcp.sport
         dport = pkt_tcp.dport
@@ -275,18 +329,14 @@ def lookForPolicy(policyList, pkt):
     print("dst: " + dst)
     print("sport: " + str(sport))
     print("dport: " + str(dport))
+    print("protocol: " + protocol)
     
-    pkt_icmp = pkt.getlayer(ICMP)
-    pkt_ip = pkt.getlayer(IP)
-
     for policy in policyList:
         #policy_tuple.get("dst")
-        if dst == policy.get("ip") and dport == policy.get("port") and protocol == policy.get("protocol"): #check how to specify src (imsi, ip, ...)
+        if dst == policy.get("ip") and dport == policy.get("port") and protocol == policy.get("protocol"):
             for user in policy.get("allowed_users"):
                 if user.get("method") == "ip" and user.get("user") == src:
-                    addEntry(src, dst, dport, protocol)
-                    #add bi-directional entry
-                    addEntry(dst, src, sport, protocol)
+                    addOpenEntry(src, dst, dport, protocol, 2) #substitute specific egress_port; 2 in my case
                 else: #imsi or token
                     stream = open("../CES/ip_map.yaml", 'r')
                     mapping = yaml.safe_load(stream)
@@ -294,9 +344,7 @@ def lookForPolicy(policyList, pkt):
                         if service.get("serviceName") == policy.get("serviceName") and service.get("ip") == policy.get("ip"): #same service and ip
                             for user in service.get("allowed_users"):
                                 if user.get("method") == ue.get("method") and user.get("user") == ue.get("user"): #same method and same id (imsi or token)
-                                    addEntry(user.get("actual_ip"), policy.get("ip"), policy.get("port"), protocol)
-                                    #add bi-directional entry
-                                    addEntry(dst, src, sport, protocol)
+                                    addOpenEntry(user.get("actual_ip"), policy.get("ip"), policy.get("port"), protocol, 2)
             found = True
             break
     
@@ -342,17 +390,6 @@ def controller():
         config=sh.FwdPipeConfig('../CES/p4-test.p4info.txt','../CES/p4-test.json')
     )
 
-    #drop control packets (if interface is unique)
-    #te = sh.TableEntry('my_ingress.ipv4_exact')(action='my_ingress.drop')
-    #te.match["hdr.ipv4.srcAddr"] = "192.187.3.7"
-    #te.match["hdr.ipv4.dstAddr"] = "192.187.3.8"
-    #te.insert()
-    #te = sh.TableEntry('my_ingress.ipv4_exact')(action='my_ingress.drop')
-    #te.match["hdr.ipv4.srcAddr"] = "192.187.3.8"
-    #te.match["hdr.ipv4.dstAddr"] = "192.187.3.7"
-    #te.insert()
-    #print("[!] Control packets to be dropped")
-
     #get and save policies_list    
     getPolicies()
 
@@ -365,7 +402,7 @@ def controller():
         packets = None
         print("Waiting for receive something")
         packet_in = sh.PacketIn()
-        packets = packet_in.sniff(timeout=5)
+        packets = packet_in.sniff(timeout=1)
         for streamMessageResponse in packets:
             packetHandler(streamMessageResponse)
 
