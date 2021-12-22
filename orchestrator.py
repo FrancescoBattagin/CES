@@ -207,9 +207,11 @@ def addOpenEntry(ip_src, ip_dst, port, protocol, egress_port):
         te.action["port"] = str(egress_port)
         te.insert()
         print("[!] New open entry added")
-        reply = threading.Thread(target = waitForReply(ip_dst, ip_src, port, "TCP")) #another thread not to block orchestrator
-        reply.start()
-        te.delete() #entry to be deleted anyway
+        reply = threading.Thread(target = waitForReply(ip_dst, ip_src, port, "TCP")).start() #another thread not to block orchestrator
+        while True:
+            if not reply.is_alive():
+                te.delete() #entry to be deleted anyway
+                print("[!] Open entry deleted")
     else:
         te = sh.TableEntry('my_ingress.ipv4_udp_open_forward')(action='my_ingress.ipv4_forward')
         te.match["hdr.ipv4.srcAddr"] = ip_src
@@ -218,17 +220,19 @@ def addOpenEntry(ip_src, ip_dst, port, protocol, egress_port):
         te.action["port"] = str(egress_port)
         te.insert()
         print("[!] New open entry added")
-        reply = threading.Thread(target = waitForReply(ip_dst, ip_src, port, "UDP")) #another thread not to block orchestrator
-        reply.start()
-        te.delete() #entry to be deleted anyway
+        reply = threading.Thread(target = waitForReply(ip_dst, ip_src, port, "UDP")).start() #another thread not to block orchestrator
+        while True:
+            if not reply.is_alive():
+                te.delete() #entry to be deleted anyway
+                print("[!] Open entry deleted")
 
 def waitForReply(ip_dst, ip_src, dport, protocol):
-    t0 = time.time()
+    timeout = time.time() + 2.0 #2 sec or more
     while True:
         packets = None
         print("Waiting for reply")
         packet_in = sh.PacketIn()
-        packets = packet_in.sniff()
+        packets = packet_in.sniff(timeout = 0.001)
         for streamMessageResponse in packets:
             packet = streamMessageResponse.packet
             if streamMessageResponse.WhichOneof('update') =='packet':
@@ -243,7 +247,7 @@ def waitForReply(ip_dst, ip_src, dport, protocol):
                                 addEntry(ip_src, ip_dst, dport, pkt.getlayer(TCP).dst, "TCP", 2)
                                 addEntry(ip_dst, ip_src, pkt.getlayer(TCP).dst, dport, "TCP", 1)
                         return
-        if time.time() - t0 >= 2.0: #if 2sec or more
+        if timeout - time.time() <= 0.0:
             return
 
 #add a new "strict" (sport -> microsegmentation) entry
@@ -394,17 +398,17 @@ def controller():
     getPolicies()
 
     #thread that checks for policies modifications
-    detector = threading.Thread(target = mod_detector)
-    detector.start()
+    print("[!] Policies modifications detector started")
+    detector = threading.Thread(target = mod_detector).start()
 
     #listening for new packets
     while True:
         packets = None
-        print("Waiting for receive something")
+        print("[!] Waiting for receive something")
         packet_in = sh.PacketIn()
-        packets = packet_in.sniff(timeout=1)
+        packets = packet_in.sniff(timeout=5)
         for streamMessageResponse in packets:
-            packetHandler(streamMessageResponse)
+            threading.Thread(target = packetHandler(streamMessageResponse)).start()
 
 if __name__ == '__main__':
     controller()
