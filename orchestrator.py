@@ -118,13 +118,13 @@ def mod_manager():
 
 #del policies when service not found
 def delPolicies(ip):
-    for te in sh.Table_entry("my_ingress.ipv4_forward").read():
+    for te in sh.Table_entry("my_ingress.forward").read():
         if te.match["hdr.ipv4.dstAddr"] == ip:
             te.delete()
 
 #edit service ip (also bidirectional entry)
 def editIPPolicies(old_ip, new_ip, port):
-    for te in sh.TableEntry("my_ingress.ipv4_forward").read():
+    for te in sh.TableEntry("my_ingress.forward").read():
         if te.match["hdr.ipv4.dstAddr"] == old_ip:
             src_addr = te.match["hdr.ipv4.srcAddr"]
             egress_port = te.action["port"]
@@ -132,7 +132,7 @@ def editIPPolicies(old_ip, new_ip, port):
             te.delete()
             addEntry(src_addr, new_ip, port, dstAddr, egress_port)
 
-    for te in sh.TableEntry("my_ingress.ipv4_forward").read():
+    for te in sh.TableEntry("my_ingress.forward").read():
         if te.match["hdr.ipv4.srcAddr"] == old_ip:
             dst_addr = te.match["hdr.ipv4.dstAddr"]
             egress_port = te.action["port"]
@@ -147,7 +147,7 @@ def editIPPolicies(old_ip, new_ip, port):
 
 #edit service port (bidirectional entry not needed -> sport is not necessary)
 def editPortPolicies(ip, new_port):
-    for te in sh.TableEntry("my_ingress.ipv4_forward").read():
+    for te in sh.TableEntry("my_ingress.forward").read():
         if te.match["hdr.ipv4.srcAddr"] == ip:
             src_addr = te.match["hdr.ipv4.src_addr"]
             dstAddr = te.action["dstAddr"]
@@ -157,13 +157,13 @@ def editPortPolicies(ip, new_port):
 
 #delete a policy (old service, user not allowed anymore)
 def delUE(ue_ip, service_ip):
-    for te in table_entry["my_ingress.ipv4_forward"].read():
+    for te in sh.Table_entry("my_ingress.forward").read():
         if te.match["hdr.ipv4.srcAddr"] == ue_ip and te.match["hdr.ipv4.dstAddr"] == service_ip:
             te.delete()
 
 #add a new tmp "open" entry
 def addOpenEntry(ip_src, ip_dst, port, ether_dst, egress_port):
-    te = sh.TableEntry('my_ingress.ipv4_forward')(action='my_ingress.ipv4_forward')
+    te = sh.TableEntry('my_ingress.forward')(action='my_ingress.ipv4_forward')
     te.match["hdr.ipv4.srcAddr"] = ip_src
     te.match["hdr.ipv4.dstAddr"] = ip_dst
     te.match["dst_port"] = str(port)
@@ -203,7 +203,7 @@ def waitForReply(ip_dst, ip_src, dport):
 
 #add a new "strict" (sport -> microsegmentation) entry
 def addEntry(ip_src, ip_dst, dport, sport, ether_dst, egress_port):
-    te = sh.TableEntry('my_ingress.ipv4_forward')(action='my_ingress.ipv4_forward')
+    te = sh.TableEntry('my_ingress.forward')(action='my_ingress.ipv4_forward')
     te.match["hdr.ipv4.srcAddr"] = ip_src
     te.match["hdr.ipv4.dstAddr"] = ip_dst
     te.match["src_port"] = str(sport)

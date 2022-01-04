@@ -108,7 +108,7 @@ limitations under the License.
 /* Note 1: More details about the definition of v1model architecture
  * can be found at the location below.
  *
- * https://github.com/p4lang/behavioral-model/blob/master/docs/simple_switch.md
+ * https://github.com/p4lang/behavioral-model/blob/main/docs/simple_switch.md
  *
  * Note 2: There were several discussions among P4 working group
  * members in early 2019 regarding exactly how resubmit, recirculate,
@@ -116,7 +116,7 @@ limitations under the License.
  * controls, but the values of the fields to be preserved is the value
  * they have when that control is finished executing.  That is how
  * these operations are defined in P4_14.  See
- * https://github.com/p4lang/behavioral-model/blob/master/docs/simple_switch.md#restrictions-on-recirculate-resubmit-and-clone-operations
+ * https://github.com/p4lang/behavioral-model/blob/main/docs/simple_switch.md#restrictions-on-recirculate-resubmit-and-clone-operations
  * for more details on the current state of affairs.
  *
  * Note 3: There are at least some P4_14 implementations where
@@ -184,8 +184,8 @@ struct standard_metadata_t {
 
 
     bit<9> ingress_port;
-    bit<9> egress_spec;
-    bit<9> egress_port;
+    bit<16> egress_spec;
+    bit<16> egress_port;
 
     bit<32> instance_type;
     bit<32> packet_length;
@@ -532,7 +532,7 @@ extern void mark_to_drop();
  * packet to do something other than drop.
  *
  * See
- * https://github.com/p4lang/behavioral-model/blob/master/docs/simple_switch.md
+ * https://github.com/p4lang/behavioral-model/blob/main/docs/simple_switch.md
  * -- in particular the section "Pseudocode for what happens at the
  * end of ingress and egress processing" -- for the relative priority
  * of the different possible things that can happen to a packet when
@@ -866,7 +866,8 @@ package V1Switch<H, M>(Parser<H, M> p,
                        );
 # 3 "p4-test.p4" 2
 
-const bit<16> TYPE_IPV4 = 0x800;
+const bit<16> TYPE_IPV4 = 0x0800;
+const bit<16> TYPE_IPV6 = 0x86dd;
 
 
 
@@ -874,8 +875,7 @@ const bit<16> TYPE_IPV4 = 0x800;
 
 typedef bit<48> EthernetAddress;
 typedef bit<32> ip4Addr_t;
-typedef bit<4> dport;
-typedef bit<9> egressSpec_t;
+typedef bit<16> egressSpec_t;
 
 header ethernet_t {
     EthernetAddress dstAddr;
@@ -898,6 +898,27 @@ header ipv4_t {
     ip4Addr_t dstAddr;
 }
 
+header tcp_t {
+    bit<16> srcPort;
+    bit<16> dstPort;
+    bit<32> seqNo;
+    bit<32> ackNo;
+    bit<4> dataOffset;
+    bit<3> res;
+    bit<3> ecn;
+    bit<6> ctrl;
+    bit<16> window;
+    bit<16> checksum;
+    bit<16> urgentPtr;
+}
+
+header udp_t {
+    bit<16> srcPort;
+    bit<16> dstPort;
+    bit<16> length_;
+    bit<16> checksum;
+}
+
 header packet_out_header_t {
     bit<16> egress_port;
 }
@@ -915,6 +936,8 @@ struct headers_t {
     packet_out_header_t packet_out;
     ethernet_t ethernet;
     ipv4_t ipv4;
+    tcp_t tcp;
+    udp_t udp;
 }
 
 error {
@@ -936,13 +959,25 @@ parser my_parser(packet_in packet,
 
     state parse_ethernet {
         packet.extract(hdr.ethernet);
-        transition select(hdr.ethernet.etherType) {
-            TYPE_IPV4 : parse_ipv4;
-        }
+        transition parse_ipv4;
     }
 
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
+        transition select(hdr.ipv4.protocol) {
+            6: parse_tcp;
+            17: parse_udp;
+            default: accept;
+        }
+    }
+
+    state parse_tcp {
+        packet.extract(hdr.tcp);
+        transition accept;
+    }
+
+    state parse_udp {
+        packet.extract(hdr.udp);
         transition accept;
     }
 }
@@ -963,6 +998,9 @@ control my_ingress(inout headers_t hdr,
                   inout metadata_t meta,
                   inout standard_metadata_t standard_metadata) {
 
+    bit<16> src_port = 0;
+    bit<16> dst_port = 0;
+
     action drop() {
         mark_to_drop(standard_metadata);
     }
@@ -972,9 +1010,9 @@ control my_ingress(inout headers_t hdr,
         hdr.ethernet.dstAddr = dstAddr;
     }
 
-    action ipv4_forward(/*EthernetAddress dstAddr, */egressSpec_t port) {
+    action ipv4_forward(EthernetAddress dstAddr, egressSpec_t port) {
         standard_metadata.egress_spec = port;
-        /*ethernet_forward(dstAddr);*/
+        ethernet_forward(dstAddr);
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
 
@@ -982,11 +1020,12 @@ control my_ingress(inout headers_t hdr,
         standard_metadata.egress_spec = 255;
     }
 
-
-    table ipv4_exact {
+    table forward {
         key = {
             hdr.ipv4.srcAddr: exact;
             hdr.ipv4.dstAddr: exact;
+            src_port: ternary;
+            dst_port: exact;
         }
         actions = {
             ipv4_forward;
@@ -1000,10 +1039,25 @@ control my_ingress(inout headers_t hdr,
 
     apply {
         if (hdr.ipv4.isValid()) {
-            ipv4_exact.apply();
+            if (hdr.tcp.isValid()){
+                src_port = hdr.tcp.srcPort;
+                dst_port = hdr.tcp.dstPort;
+                forward.apply();
+            }
+            else if (hdr.udp.isValid()){
+                src_port = hdr.udp.srcPort;
+                dst_port = hdr.udp.dstPort;
+                forward.apply();
+            }
+            else{
+                send_to_controller();
+                /*drop();*/
+            }
         }
-        else
+        else {
             send_to_controller();
+            /*drop();*/
+        }
     }
 }
 
@@ -1036,6 +1090,8 @@ control my_deparser(packet_out packet, in headers_t hdr) {
         packet.emit(hdr.packet_out);
         packet.emit(hdr.ethernet);
         packet.emit(hdr.ipv4);
+        packet.emit(hdr.tcp);
+        packet.emit(hdr.udp);
     }
 }
 

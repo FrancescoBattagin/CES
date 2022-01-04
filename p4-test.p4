@@ -155,7 +155,7 @@ control my_ingress(inout headers_t hdr,
         standard_metadata.egress_spec = CONTROLLER_PORT;
     }
 
-    table ipv4_forward {
+    table forward {
         key = {
             hdr.ipv4.srcAddr: exact;
             hdr.ipv4.dstAddr: exact;
@@ -177,17 +177,18 @@ control my_ingress(inout headers_t hdr,
             if (hdr.tcp.isValid()){
                 src_port = hdr.tcp.srcPort;
                 dst_port = hdr.tcp.dstPort;
-                ipv4_forward.apply();
+                forward.apply();
             }
             else if (hdr.udp.isValid()){
                 src_port = hdr.udp.srcPort;
                 dst_port = hdr.udp.dstPort;
-                ipv4_forward.apply();
+                forward.apply();
             }
             else{
                 send_to_controller();
                 /*drop();*/
             }
+        }
         else {
             send_to_controller();
             /*drop();*/
