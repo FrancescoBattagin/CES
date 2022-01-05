@@ -5,7 +5,7 @@
  serviceName: "name" #application name
  ip: '11.0.0.253' #IP
  port: 80 #service port
- ether_dst: "ff:ff:ff:ff:ff:ff"
+ serviceEther: "ff:ff:ff:ff:ff:ff"
  protocol: TCP #protocol
  allowed_users: 
  -

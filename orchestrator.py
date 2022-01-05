@@ -46,7 +46,7 @@ def mod_manager():
                 if policy.get("ip") != policy_tmp.get("ip"):
                     print("[!] IP_MODIFICATIONS")
                     print("[!] Editing policies IP...")
-                    editIPPolicies(policy_tmp.get("ip"), policy.get("ip"), policy.get("port"), policy.get("protocol")) #also bidirectional entry
+                    editIPPolicies(policy_tmp.get("ip"), policy.get("ip"), policy.get("port")) #also bidirectional entry
 
                 if policy.get("port") != policy_tmp.get("port"):
                     print("[!] PORT_MODIFICATIONS")
@@ -66,15 +66,15 @@ def mod_manager():
                         for service in mapping: #leverage on ip_map to get sport for bidirectional traffic
                             if service.get("serviceName") == policy.get("serviceName") and service.get("ip") == policy.get("ip"): #same service and ip
                                 for user in service.get("allowed_users"):
-                                    if ue.get("method") == "ip" and user.get("actual_ip") == ue.get("user"): #ip already available
-                                        addEntry(ue.get("actual_ip"), policy.get("ip"), policy.get("port"), 2)
+                                    if ue.get("method") == "ip" and user.get("actual_ip") == ue.get("user"): #ip already available; maybe not needed, but for the sake of completeness
+                                        addEntry(ue.get("actual_ip"), policy.get("ip"), policy.get("port"), user.get("sport"), policy.get("serviceEther"), 2)
                                         #add bi-directional entry 
-                                        addEntry(policy.get("ip"), ue.get("actual_ip"), user.get("sport"), 1)
+                                        addEntry(policy.get("ip"), ue.get("actual_ip"), user.get("sport"), policy.get("port"), user.get("ether"), 1)
                                     else:
                                         if (user.get("method") == "imsi" and user.get("imsi") == ue.get("user")) or (user.get("method") == "token" and user.get("token") == ue.get("user")): #same method and same id (imsi or token)
-                                            addEntry(user.get("actual_ip"), policy.get("ip"), policy.get("port"), 2)
+                                            addEntry(user.get("actual_ip"), policy.get("ip"), policy.get("port"), user.get("sport"), policy.get("serviceEther"), 2)
                                             #add bi-directional entry 
-                                            addEntry(policy.get("ip"), user.get("actual_ip"), user.get("sport"), 1)
+                                            addEntry(policy.get("ip"), user.get("actual_ip"), user.get("sport"), policy.get("port"), user.get("ether"), 1)
                 #del
                 for ue in policy_tmp.get("allowed_users"):
                     if ue not in policy.get("allowed_users"):
@@ -127,23 +127,20 @@ def editIPPolicies(old_ip, new_ip, port):
     for te in sh.TableEntry("my_ingress.forward").read():
         if te.match["hdr.ipv4.dstAddr"] == old_ip:
             src_addr = te.match["hdr.ipv4.srcAddr"]
+            src_port = te.match["src_port"]
             egress_port = te.action["port"]
             dstAddr = te.action["dstAddr"]
             te.delete()
-            addEntry(src_addr, new_ip, port, dstAddr, egress_port)
+            addEntry(src_addr, new_ip, port, src_port, dstAddr, egress_port)
 
     for te in sh.TableEntry("my_ingress.forward").read():
         if te.match["hdr.ipv4.srcAddr"] == old_ip:
             dst_addr = te.match["hdr.ipv4.dstAddr"]
             egress_port = te.action["port"]
             dstAddr = te.action["dstAddr"]
+            dst_port = te.action["dst_port"]
             te.delete()
-            stream = open("../CES/ip_map.yaml", 'r')
-            mapping = yaml.safe_load(stream)
-            for service in mapping:
-                for user in service.get("allowed_users"):
-                    if user.get("actual_ip") == dst_addr:
-                        addEntry(new_ip, dst_addr, user.get("sport"), dstAddr, egress_port)
+            addEntry(new_ip, dst_addr, dst_port, port, dstAddr, egress_port)
 
 #edit service port (bidirectional entry not needed -> sport is not necessary)
 def editPortPolicies(ip, new_port):
@@ -151,9 +148,10 @@ def editPortPolicies(ip, new_port):
         if te.match["hdr.ipv4.srcAddr"] == ip:
             src_addr = te.match["hdr.ipv4.src_addr"]
             dstAddr = te.action["dstAddr"]
+            src_port = te.action["src_port"]
             egress_port = te.action["port"]
             te.delete()
-            addEntry(src_addr, ip, new_port, dstAddr, egress_port)
+            addEntry(src_addr, ip, new_port, src_port, dstAddr, egress_port)
 
 #delete a policy (old service, user not allowed anymore)
 def delUE(ue_ip, service_ip):
@@ -195,8 +193,8 @@ def waitForReply(ip_dst, ip_src, dport):
                     if pkt_src == ip_dst and pkt_dst == ip_src:
                         if pkt.getlayer(TCP) != None:
                             if dport == pkt.getlayer(TCP).src:
-                                addEntry(ip_src, ip_dst, dport, pkt.getlayer(TCP).dst, 2)
-                                addEntry(ip_dst, ip_src, pkt.getlayer(TCP).dst, dport, 1)
+                                addEntry(ip_src, ip_dst, dport, pkt.getlayer(TCP).dst, pkt.getlayer(Ether).dstAddr, 2)
+                                addEntry(ip_dst, ip_src, pkt.getlayer(TCP).dst, dport, pkt.getlayer(Ether).srcAddr, 1)
                         return
         if timeout - time.time() <= 0.0:
             return
@@ -247,6 +245,10 @@ def lookForPolicy(policyList, pkt):
     print("[!] Policies: \n")
     print(policyList)
     
+    pkt_ether = pkt.getlayer(Ether)
+    ether_src = pkt_ether.srcAddr
+    ether_dst = pkt_ether.dstAddr
+    
     pkt_ip = pkt.getlayer(IP)
     if pkt_ip != None:
         src = pkt_ip.src
@@ -271,8 +273,10 @@ def lookForPolicy(policyList, pkt):
         print("\n[!] Protocol unknown\n")
         return
 
-    print("\nsrc: " + src)
-    print("dst: " + dst)
+    print("\nsrc_ether: " + src)
+    print("dst_ether: " + dst)
+    print("src_ip: " + src)
+    print("dst_ip: " + dst)
     print("sport: " + str(sport))
     print("dport: " + str(dport))
     print("protocol: " + protocol)
@@ -282,7 +286,7 @@ def lookForPolicy(policyList, pkt):
         if dst == policy.get("ip") and dport == policy.get("port") and protocol == policy.get("protocol"):
             for user in policy.get("allowed_users"):
                 if user.get("method") == "ip" and user.get("user") == src:
-                    addOpenEntry(src, dst, dport, policy.get("ether_dst"), 2) #substitute specific egress_port; 2 in my case
+                    addOpenEntry(src, dst, dport, policy.get("serviceEther"), 2) #substitute specific egress_port; 2 in my case
                 else: #imsi or token
                     stream = open("../CES/ip_map.yaml", 'r')
                     mapping = yaml.safe_load(stream)
@@ -290,7 +294,7 @@ def lookForPolicy(policyList, pkt):
                         if service.get("serviceName") == policy.get("serviceName") and service.get("ip") == policy.get("ip"): #same service and ip
                             for user in service.get("allowed_users"):
                                 if user.get("method") == ue.get("method") and user.get("user") == ue.get("user"): #same method and same id (imsi or token)
-                                    addOpenEntry(user.get("actual_ip"), policy.get("ip"), policy.get("port"), policy.get("ether_dst"), 2)
+                                    addOpenEntry(user.get("actual_ip"), policy.get("ip"), policy.get("port"), policy.get("serviceEther"), 2)
             found = True
             break
     
@@ -341,7 +345,8 @@ def controller():
 
     #thread that checks for policies modifications
     print("[!] Policies modifications detector started")
-    detector = threading.Thread(target = mod_detector).start()
+    detector = threading.Thread(target = mod_detector)
+    detector.start()
 
     #listening for new packets
     while True:
@@ -350,7 +355,8 @@ def controller():
         packet_in = sh.PacketIn()
         packets = packet_in.sniff(timeout=5)
         for streamMessageResponse in packets:
-            threading.Thread(target = packetHandler(streamMessageResponse)).start()
+            packet_handler = threading.Thread(target = packetHandler, args = (streamMessageResponse,))
+            packet_handler.start()
 
 if __name__ == '__main__':
     controller()
