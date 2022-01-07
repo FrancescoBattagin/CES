@@ -167,13 +167,14 @@ def addOpenEntry(ip_src, ip_dst, port, ether_dst, egress_port):
     te.match["dst_port"] = str(port)
     te.action["dstAddr"] = ether_dst
     te.action["port"] = str(egress_port)
+    te.priority = 1
     te.insert()
     print("[!] New open entry added")
     reply = threading.Thread(target = waitForReply(ip_dst, ip_src, port)).start() #another thread not to block orchestrator
-    while True:
-        if not reply.is_alive():
-            te.delete() #entry to be deleted anyway
-            print("[!] Open entry deleted")
+    reply.start()
+    reply.join()
+    te.delete() #entry to be deleted anyway
+    print("[!] Open entry deleted")
 
 def waitForReply(ip_dst, ip_src, dport):
     timeout = time.time() + 2.0 #2 sec or more
@@ -195,9 +196,9 @@ def waitForReply(ip_dst, ip_src, dport):
                             if dport == pkt.getlayer(TCP).src:
                                 addEntry(ip_src, ip_dst, dport, pkt.getlayer(TCP).dst, pkt.getlayer(Ether).dstAddr, 2)
                                 addEntry(ip_dst, ip_src, pkt.getlayer(TCP).dst, dport, pkt.getlayer(Ether).srcAddr, 1)
-                        return
+                        break
         if timeout - time.time() <= 0.0:
-            return
+            break
 
 #add a new "strict" (sport -> microsegmentation) entry
 def addEntry(ip_src, ip_dst, dport, sport, ether_dst, egress_port):
@@ -208,6 +209,7 @@ def addEntry(ip_src, ip_dst, dport, sport, ether_dst, egress_port):
     te.match["dst_port"] = str(dport)
     te.action["dstAddr"] = ether_dst
     te.action["port"] = str(egress_port)
+    te.priority = 1
     te.insert()
     print("[!] New entry added")
 
@@ -273,8 +275,8 @@ def lookForPolicy(policyList, pkt):
         print("\n[!] Protocol unknown\n")
         return
 
-    print("\nsrc_ether: " + src)
-    print("dst_ether: " + dst)
+    print("\nsrc_ether: " + ether_src)
+    print("dst_ether: " + ether_dst)
     print("src_ip: " + src)
     print("dst_ip: " + dst)
     print("sport: " + str(sport))
@@ -283,10 +285,12 @@ def lookForPolicy(policyList, pkt):
     
     for policy in policyList:
         #policy_tuple.get("dst")
-        if dst == policy.get("ip") and dport == policy.get("port") and protocol == policy.get("protocol"):
+        if dst == policy.get("ip") and ether_dst == policy.get("serviceEther") and dport == policy.get("port") and protocol == policy.get("protocol"):
             for user in policy.get("allowed_users"):
                 if user.get("method") == "ip" and user.get("user") == src:
+                    found = True
                     addOpenEntry(src, dst, dport, policy.get("serviceEther"), 2) #substitute specific egress_port; 2 in my case
+                    break
                 else: #imsi or token
                     stream = open("../CES/ip_map.yaml", 'r')
                     mapping = yaml.safe_load(stream)
@@ -294,10 +298,9 @@ def lookForPolicy(policyList, pkt):
                         if service.get("serviceName") == policy.get("serviceName") and service.get("ip") == policy.get("ip"): #same service and ip
                             for user in service.get("allowed_users"):
                                 if user.get("method") == ue.get("method") and user.get("user") == ue.get("user"): #same method and same id (imsi or token)
+                                    found = True
                                     addOpenEntry(user.get("actual_ip"), policy.get("ip"), policy.get("port"), policy.get("serviceEther"), 2)
-            found = True
-            break
-    
+                                    break    
     if not found:
         #packet drop
         packet = None
@@ -323,7 +326,7 @@ def packetHandler(streamMessageResponse):
             print("[!] Ping from: " + pkt_src)
             lookForPolicy(policies_list, pkt)
         elif pkt_ip != None:
-            print("[!] Packet received: " + pkt_src + "-->" + pkt_dst)
+            print("[!] Packet received: " + pkt_src + " --> " + pkt_dst)
             lookForPolicy(policies_list, pkt)
         else:
             print("[!] No needed layer (ARP, DNS, ...)")
@@ -335,10 +338,15 @@ def controller():
     #connection
     sh.setup(
         device_id=1,
-        grpc_addr='172.17.0.1:50319', #substitute ip and port with the ones of the specific switch
+        grpc_addr='172.17.0.1:46985', #substitute ip and port with the ones of the specific switch
         election_id=(1, 0), # (high, low)
         config=sh.FwdPipeConfig('../CES/p4-test.p4info.txt','../CES/p4-test.json')
     )
+
+    #deletion of already-present entries
+    print("[!] Entries initial deletion")
+    for te in sh.TableEntry("my_ingress.forward").read():
+        te.delete()
 
     #get and save policies_list    
     getPolicies()
@@ -350,13 +358,26 @@ def controller():
 
     #listening for new packets
     while True:
-        packets = None
+        packets = []
         print("[!] Waiting for receive something")
         packet_in = sh.PacketIn()
-        packets = packet_in.sniff(timeout=5)
+        
+        def collecting_packets(packets):
+            packets += packet_in.sniff(timeout=1)
+        
+        packet_collector = threading.Thread(target = collecting_packets, args = (packets, ))
+        packet_collector.start()
+        print("[!] packet_collector started")
+        packet_collector.join()
+        print("[!] packet_collector ended")
+        threads = []
         for streamMessageResponse in packets:
             packet_handler = threading.Thread(target = packetHandler, args = (streamMessageResponse,))
+            threads.append(packet_handler)
             packet_handler.start()
-
+            print("[!] packet_handler started")
+        for thread in threads:
+            thread.join()
+            
 if __name__ == '__main__':
     controller()
