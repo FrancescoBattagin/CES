@@ -182,7 +182,15 @@ def waitForReply(ip_dst, ip_src, dport):
         packets = None
         print("Waiting for reply")
         packet_in = sh.PacketIn()
-        packets = packet_in.sniff(timeout = 0.001)
+
+        def collecting_packets(packets):
+            packets += packet_in.sniff(timeout=5)
+
+        packet_collector = threading.Thread(target = collecting_packets, args = (packets, ))
+        packet_collector.start()
+        print("[!] packet_collector started")
+        packet_collector.join()
+        print("[!] packet_collector ended")
         for streamMessageResponse in packets:
             packet = streamMessageResponse.packet
             if streamMessageResponse.WhichOneof('update') =='packet':
@@ -193,9 +201,9 @@ def waitForReply(ip_dst, ip_src, dport):
                     pkt_dst = pkt.getlayer(IP).dst
                     if pkt_src == ip_dst and pkt_dst == ip_src:
                         if pkt.getlayer(TCP) != None:
-                            if dport == pkt.getlayer(TCP).src:
-                                addEntry(ip_src, ip_dst, dport, pkt.getlayer(TCP).dst, pkt.getlayer(Ether).dstAddr, 2)
-                                addEntry(ip_dst, ip_src, pkt.getlayer(TCP).dst, dport, pkt.getlayer(Ether).srcAddr, 1)
+                            if dport == pkt.getlayer(TCP).sport:
+                                addEntry(ip_src, ip_dst, dport, pkt.getlayer(TCP).dport, pkt.getlayer(Ether).dstAddr, 2)
+                                addEntry(ip_dst, ip_src, pkt.getlayer(TCP).dport, dport, pkt.getlayer(Ether).srcAddr, 1)
                         break
         if timeout - time.time() <= 0.0:
             break
@@ -363,7 +371,7 @@ def controller():
         packet_in = sh.PacketIn()
         
         def collecting_packets(packets):
-            packets += packet_in.sniff(timeout=1)
+            packets += packet_in.sniff(timeout=5)
         
         packet_collector = threading.Thread(target = collecting_packets, args = (packets, ))
         packet_collector.start()
