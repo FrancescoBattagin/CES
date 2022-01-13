@@ -27,7 +27,10 @@ pcrf = net.addDocker("pcrf", ip='192.187.3.5', dimage="laboraufg/free5gc-st1")
 controller = net.addDocker('controller', ip='192.187.3.7', build_params={"dockerfile":"Dockerfile", "path":"../../p4runtime-shell/"})
 endpoint = net.addDocker('endpoint', ip='192.187.3.9', dimage="ubuntu:trusty", ports=[1290], port_bindings={1290:1290}, publish_all_ports=True)
 
+#not needed if addP4Switch (see below)
 #d1 = net.addDocker('bmv2', ip='192.187.3.8', dimage="opennetworking/p4mn")
+
+#created inside ansible-playbook
 #d1 = net.addDocker("mongodb-svc", ip='192.187.3.100', dimage="laboraufg/mongodb-free5gc")
 #d7 = net.addDocker("webui", ip='192.187.3.101', dimage="laboraufg/webui-free5gc", ports=[3000], port_bindings={3000:3000})
 
@@ -64,7 +67,7 @@ net.addLink(amf, s5)
 net.addLink(hss, s5)
 
 
-#If every core container is linked w\ specific other containers 
+#If every core container is linked w\ specific other containers; need to add new interfaces?
 #net.addLink(enb, s3, params1={"ip": "192.187.3.250/8"}) 
 #net.addLink(s3, s4, cls=TCLink, delay='100ms', bw=1)
 #net.addLink(upf, s4) #s4 -> upf
@@ -93,14 +96,14 @@ net.addLink(bmv2, endpoint) #bmv2 -> endpoint
 
 info('*** Starting network\n')
 net.start()
-net.staticArp()
+net.staticArp() #to avoid components' ARP requests/replies
 
 info('*** Running CLI\n')
+#Some useful packages to be installed
 #commands_d1 = "sudo docker exec -it mn.ue1 apt-get install -y tcpdump && sudo docker exec -it mn.ue2 apt-get install -y tcpdump && sudo docker exec -it mn.ue3 apt-get install -y tcpdump"
 #commands_smf = "sudo docker exec -it mn.endpoint apt-get install -y tcpdump"
 #commands_upf = "sudo docker exec -it mn.controller apt-get install -y git && sudo docker exec -it mn.controller git clone https://github.com/FrancescoBattagin/CES && sudo docker exec -it mn.controller apt-get -y install vim"
 #commands_upf_2 = "sudo docker exec -it mn.controller apt-get update && sudo docker exec -it apt-get install -y python3-pip && sudo docker exec -it mn.controller pip3 install p4runtime-shell && sudo docker exec -it mn.controller pip3 scapy && sudo docker exec -it mn.controller pip3 pyyaml && sudo docker exec -it mn.controller pip3 inotify"
-
 #bash_commands = Popen(commands_d1, shell = True, stdout = PIPE)
 #time.sleep(5)
 #bash_commands = Popen(commands_smf, shell = True, stdout = PIPE)
