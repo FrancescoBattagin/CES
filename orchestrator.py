@@ -13,6 +13,7 @@ import inotify.adapters
 # import p4runtime_lib.bmv2
 
 policies_list = []
+mac_addresses = {}
 
 #check if PolicyDB has been modified
 def mod_detector():
@@ -33,6 +34,7 @@ def mod_detector():
 #find out specific modifications per policy
 def mod_manager():
     global policies_list
+    global mac_addresses
     tmp = policies_list
     getPolicies()
     
@@ -67,14 +69,14 @@ def mod_manager():
                             if service.get("serviceName") == policy.get("serviceName") and service.get("ip") == policy.get("ip"): #same service and ip
                                 for user in service.get("allowed_users"):
                                     if ue.get("method") == "ip" and user.get("actual_ip") == ue.get("user"): #ip already available; maybe not needed, but for the sake of completeness
-                                        addEntry(ue.get("actual_ip"), policy.get("ip"), policy.get("port"), user.get("sport"), policy.get("serviceEther"), 2)
+                                        addEntry(ue.get("actual_ip"), policy.get("ip"), policy.get("port"), user.get("sport"), mac_addresses[policy.get("ip")], 2)
                                         #add bi-directional entry 
-                                        addEntry(policy.get("ip"), ue.get("actual_ip"), user.get("sport"), policy.get("port"), user.get("ether"), 1)
+                                        addEntry(policy.get("ip"), ue.get("actual_ip"), user.get("sport"), policy.get("port"), mac_addresses[user.get("actual_ip")], 1)
                                     else:
                                         if (user.get("method") == "imsi" and user.get("imsi") == ue.get("user")) or (user.get("method") == "token" and user.get("token") == ue.get("user")): #same method and same id (imsi or token)
-                                            addEntry(user.get("actual_ip"), policy.get("ip"), policy.get("port"), user.get("sport"), policy.get("serviceEther"), 2)
+                                            addEntry(user.get("actual_ip"), policy.get("ip"), policy.get("port"), user.get("sport"), mac_addresses[policy.get("ip")], 2)
                                             #add bi-directional entry 
-                                            addEntry(policy.get("ip"), user.get("actual_ip"), user.get("sport"), policy.get("port"), user.get("ether"), 1)
+                                            addEntry(policy.get("ip"), user.get("actual_ip"), user.get("sport"), policy.get("port"), mac_addresses[user.get("actual_ip")], 1)
                 #del
                 for ue in policy_tmp.get("allowed_users"):
                     if ue not in policy.get("allowed_users"):
@@ -160,7 +162,7 @@ def delUE(ue_ip, service_ip):
             te.delete()
 
 #add a new tmp "open" entry
-def addOpenEntry(ip_src, ip_dst, port, ether_dst, egress_port):
+def addOpenEntry(ip_src, ip_dst, port, ether_dst, egress_port, ether_src):
     te = sh.TableEntry('my_ingress.forward')(action='my_ingress.ipv4_forward')
     te.match["hdr.ipv4.srcAddr"] = ip_src
     te.match["hdr.ipv4.dstAddr"] = ip_dst
@@ -170,13 +172,15 @@ def addOpenEntry(ip_src, ip_dst, port, ether_dst, egress_port):
     te.priority = 1
     te.insert()
     print("[!] New open entry added")
-    reply = threading.Thread(target = waitForReply(ip_dst, ip_src, port)).start() #another thread not to block orchestrator
+    reply = threading.Thread(target = waitForReply(ip_dst, ip_src, port, ether_src)).start() #another thread not to block orchestrator
     reply.start()
     reply.join()
     te.delete() #entry to be deleted anyway
     print("[!] Open entry deleted")
 
-def waitForReply(ip_dst, ip_src, dport):
+#wait for a tcp reply for "open" entry deletion and "strict" entry addition
+def waitForReply(ip_dst, ip_src, dport, ether_src):
+    global mac_addresses
     timeout = time.time() + 2.0 #2 sec or more
     while True:
         packets = None
@@ -202,8 +206,8 @@ def waitForReply(ip_dst, ip_src, dport):
                     if pkt_src == ip_dst and pkt_dst == ip_src:
                         if pkt.getlayer(TCP) != None:
                             if dport == pkt.getlayer(TCP).sport:
-                                addEntry(ip_src, ip_dst, dport, pkt.getlayer(TCP).dport, pkt.getlayer(Ether).dstAddr, 2)
-                                addEntry(ip_dst, ip_src, pkt.getlayer(TCP).dport, dport, pkt.getlayer(Ether).srcAddr, 1)
+                                addEntry(ip_src, ip_dst, dport, pkt.getlayer(TCP).dport, pkt.getlayer(Ether).src, 2)
+                                addEntry(ip_dst, ip_src, pkt.getlayer(TCP).dport, dport, ether_src, 1)
                         break
         if timeout - time.time() <= 0.0:
             break
@@ -251,21 +255,18 @@ def getPoliciesDB(packet):
 
 #look for policy and add new entries if found (when a packet is received)
 def lookForPolicy(policyList, pkt):
+    global mac_addresses
     found = False
     print("[!] Policies: \n")
     print(policyList)
-    
+        
+    pkt_ip = pkt.getlayer(IP)
+    src = pkt_ip.src
+    dst = pkt_ip.dst
+
     pkt_ether = pkt.getlayer(Ether)
     ether_src = pkt_ether.srcAddr
-    ether_dst = pkt_ether.dstAddr
-    
-    pkt_ip = pkt.getlayer(IP)
-    if pkt_ip != None:
-        src = pkt_ip.src
-        dst = pkt_ip.dst
-    else:
-        print("\n[!] IP layer not present")
-        return
+    ether_dst = mac_addresses[dst]
 
     pkt_tcp = pkt.getlayer(TCP)
     pkt_udp = pkt.getlayer(UDP)
@@ -293,11 +294,11 @@ def lookForPolicy(policyList, pkt):
     
     for policy in policyList:
         #policy_tuple.get("dst")
-        if dst == policy.get("ip") and ether_dst == policy.get("serviceEther") and dport == policy.get("port") and protocol == policy.get("protocol"):
+        if dst == policy.get("ip") and dport == policy.get("port") and protocol == policy.get("protocol"):
             for user in policy.get("allowed_users"):
                 if user.get("method") == "ip" and user.get("user") == src:
                     found = True
-                    addOpenEntry(src, dst, dport, policy.get("serviceEther"), 2) #substitute specific egress_port; 2 in my case
+                    addOpenEntry(src, dst, dport, ether_dst, 2, ether_src) #substitute specific egress_port; 2 in my case
                     break
                 else: #imsi or token
                     stream = open("../CES/ip_map.yaml", 'r')
@@ -307,15 +308,24 @@ def lookForPolicy(policyList, pkt):
                             for user in service.get("allowed_users"):
                                 if user.get("method") == ue.get("method") and user.get("user") == ue.get("user"): #same method and same id (imsi or token)
                                     found = True
-                                    addOpenEntry(user.get("actual_ip"), policy.get("ip"), policy.get("port"), policy.get("serviceEther"), 2)
+                                    addOpenEntry(user.get("actual_ip"), policy.get("ip"), policy.get("port"), ether_dst, 2, ether_src)
                                     break    
     if not found:
         #packet drop
         packet = None
         print("[!] Packet dropped\n\n\n")
 
+#add new ip-mac entry to dictionary
+def arpManagement(packet):
+    global mac_addresses
+    mac = packet.getlayer(Ether).src
+    ip = packet.getlayer(ARP).psrc
+    print(ip + " has MAC " + mac)
+    mac_addresses[ip] = mac
+
 #handle a just received packet
 def packetHandler(streamMessageResponse):
+    global mac_addresses
     print("[!] Packets received")
     packet = streamMessageResponse.packet
 
@@ -327,17 +337,25 @@ def packetHandler(streamMessageResponse):
             pkt_src = pkt.getlayer(IP).src
             pkt_dst = pkt.getlayer(IP).dst
         #ether_type = pkt.getlayer(Ether).type
+        
         pkt_icmp = pkt.getlayer(ICMP)
         pkt_ip = pkt.getlayer(IP)
+        pkt_arp = pkt.getlayer(ARP)
         
         if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":
             print("[!] Ping from: " + pkt_src)
-            lookForPolicy(policies_list, pkt)
+            print("[!] ICMP layer not supported in p4 switch yet")
         elif pkt_ip != None:
             print("[!] Packet received: " + pkt_src + " --> " + pkt_dst)
-            lookForPolicy(policies_list, pkt)
+            if mac_addresses[pkt_dst] != None: #dst mac already known
+                lookForPolicy(policies_list, pkt)
+            else:
+                print("[!] Dst MAC info not known, still waiting for a gratuitous ARP packet")
+        elif pkt_arp != None:
+            print("[!] Gratuitous ARP)")
+            arpManagement(pkt)
         else:
-            print("[!] No needed layer (ARP, DNS, ...)")
+            print("[!] No needed layers")
 
 #setup connection \w switch, sets policies_list, starts mod_detector thread and listens for new packets
 def controller():
@@ -375,15 +393,15 @@ def controller():
         
         packet_collector = threading.Thread(target = collecting_packets, args = (packets, ))
         packet_collector.start()
-        print("[!] packet_collector started")
+        #print("[!] packet_collector started")
         packet_collector.join()
-        print("[!] packet_collector ended")
+        #print("[!] packet_collector ended")
         threads = []
         for streamMessageResponse in packets:
             packet_handler = threading.Thread(target = packetHandler, args = (streamMessageResponse,))
             threads.append(packet_handler)
             packet_handler.start()
-            print("[!] packet_handler started")
+            #print("[!] packet_handler started")
         for thread in threads:
             thread.join()
             
