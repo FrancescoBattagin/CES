@@ -15,6 +15,15 @@ import inotify.adapters
 policies_list = []
 mac_addresses = {}
 
+#Auth layer definition
+class Auth(Packet):
+    fields_desc = []
+    fields_desc.append(StrLenField("service_ip", "10.0.0.1")) #10.0.0.1 as default
+    fields_desc.append(StrLenField("method", "imsi")) #imsi as default
+    fields_desc.append(StrLenField("authentication", "310170845466094")) #310170845466094 as default
+    fields_desc.append(StrLenField("port", 80)) #80 as default
+    fields_desc.append(StrLenField("protocol", "TCP")) #TCP as default
+
 #check if PolicyDB has been modified
 def mod_detector():
     while True:
@@ -265,24 +274,19 @@ def lookForPolicy(policyList, pkt):
     dst = pkt_ip.dst
 
     pkt_ether = pkt.getlayer(Ether)
-    ether_src = pkt_ether.srcAddr
+    ether_src = mac_addresses[src]
     ether_dst = mac_addresses[dst]
 
-    pkt_tcp = pkt.getlayer(TCP)
     pkt_udp = pkt.getlayer(UDP)
-    protocol = ""
-
-    if pkt_tcp != None:
-        sport = pkt_tcp.sport
-        dport = pkt_tcp.dport
-        protocol = "TCP"
-    elif pkt_udp != None:
-        sport = pkt_udp.sport
-        dport = pkt_udp.dport
-        protocol = "UDP"
-    else:
-        print("\n[!] Protocol unknown\n")
-        return
+    sport = pkt_udp.sport
+    dport = pkt_udp.dport
+    
+    pkt_auth = pkt.getlayer(Auth)
+    service_ip = pkt_auth.service_ip
+    method = pkt_auth.method
+    authentication = pkt_auth.authentication
+    port = pkt_auth.port
+    protocol = pkt_auth.protocol
 
     print("\nsrc_ether: " + ether_src)
     print("dst_ether: " + ether_dst)
@@ -290,23 +294,27 @@ def lookForPolicy(policyList, pkt):
     print("dst_ip: " + dst)
     print("sport: " + str(sport))
     print("dport: " + str(dport))
-    print("protocol: " + protocol)
+    print("service_ip: " + service_ip)
+    print("method: " + method)
+    print("authentication: " + authentication)
+    print("port: " + str(port))
+    print("protocol " + protocol)
     
     for policy in policyList:
-        #policy_tuple.get("dst")
-        if dst == policy.get("ip") and dport == policy.get("port") and protocol == policy.get("protocol"):
+        if service_ip == policy.get("ip") and port == policy.get("port") and protocol == policy.get("protocol"):
             for user in policy.get("allowed_users"):
-                if user.get("method") == "ip" and user.get("user") == src:
-                    found = True
-                    addOpenEntry(src, dst, dport, ether_dst, 2, ether_src) #substitute specific egress_port; 2 in my case
-                    break
+                if method == "ip":
+                    if user.get("method") == "ip" and user.get("user") == authentication:
+                        found = True
+                        addOpenEntry(authentication, service_ip, port, ether_dst, 2, ether_src) #substitute specific egress_port; 2 in my case
+                        break
                 else: #imsi or token
                     stream = open("../CES/ip_map.yaml", 'r')
                     mapping = yaml.safe_load(stream)
                     for service in mapping:
                         if service.get("serviceName") == policy.get("serviceName") and service.get("ip") == policy.get("ip"): #same service and ip
                             for user in service.get("allowed_users"):
-                                if user.get("method") == ue.get("method") and user.get("user") == ue.get("user"): #same method and same id (imsi or token)
+                                if user.get("method") == ue.get("method") and ue.get("method") == method and user.get("user") == ue.get("user") and ue.get("user") == authentication: #same method and same id (imsi or token)
                                     found = True
                                     addOpenEntry(user.get("actual_ip"), policy.get("ip"), policy.get("port"), ether_dst, 2, ether_src)
                                     break    
@@ -321,7 +329,8 @@ def arpManagement(packet):
     mac = packet.getlayer(Ether).src
     ip = packet.getlayer(ARP).psrc
     print(ip + " has MAC " + mac)
-    mac_addresses[ip] = mac
+    if ip not in mac_addresses:
+        mac_addresses[ip] = mac
 
 #handle a just received packet
 def packetHandler(streamMessageResponse):
@@ -336,24 +345,26 @@ def packetHandler(streamMessageResponse):
         if pkt.getlayer(IP) != None:
             pkt_src = pkt.getlayer(IP).src
             pkt_dst = pkt.getlayer(IP).dst
-        #ether_type = pkt.getlayer(Ether).type
         
         pkt_icmp = pkt.getlayer(ICMP)
         pkt_ip = pkt.getlayer(IP)
         pkt_arp = pkt.getlayer(ARP)
+        pkt_udp = pkt.getlayer(UDP)
+        pkt_auth = pkt.getlayer(Auth)
         
         if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":
             print("[!] Ping from: " + pkt_src)
-            print("[!] ICMP layer not supported in p4 switch yet")
+            print("[!] ICMP layer not supported in p4 switch, not used")
         elif pkt_ip != None:
             print("[!] Packet received: " + pkt_src + " --> " + pkt_dst)
-            if mac_addresses[pkt_dst] != None: #dst mac already known
+            if pkt_arp != None: #[!!!] Test condition
+                print("[!] ARP info)")
+                arpManagement(pkt)    
+            elif pkt_src in mac_addresses and pkt_dst in mac_addresses and pkt_udp != None and pkt_auth != None: #dst mac already known and UDP packet w\ auth layer
                 lookForPolicy(policies_list, pkt)
             else:
-                print("[!] Dst MAC info not known, still waiting for a gratuitous ARP packet")
-        elif pkt_arp != None:
-            print("[!] Gratuitous ARP)")
-            arpManagement(pkt)
+                print("[!] MAC info not known, still waiting for a gratuitous ARP packet. Here are all the collected info")
+                print(mac_addresses)
         else:
             print("[!] No needed layers")
 

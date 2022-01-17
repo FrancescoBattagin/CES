@@ -2,14 +2,14 @@ from scapy.all import *
 import threading
 
 class Auth(Packet):
-    name = "IMSI"
     fields_desc = []
-
-    pkt_ip = IP()
-
+    fields_desc.append(StrLenField("service_ip", "10.0.2.15")) #10.0.0.1 as default
     fields_desc.append(StrLenField("method", "imsi")) #imsi as default
     fields_desc.append(StrLenField("authentication", "310170845466094")) #310170845466094 as default
+    fields_desc.append(StrLenField("port", 80)) #80 as default
+    fields_desc.append(StrLenField("protocol", "TCP")) #TCP as default
     
+    #pkt_ip = IP()
     #if pkt_ip.src == '10.0.2.15': #interface enp0s3
         #fields_desc.append(StrLenField("authentication", "10.0.2.15", bin(len("10.0.2.15"))))
         #fields_desc.append(StrLenField("imsi","310170845466094",1111))
@@ -56,9 +56,9 @@ def packetHandler(packets):
 
 #print("\n\n\n\n\n\nnow test /w a packet")
 
-packet = IP(ttl = 100, dst = '10.0.2.15')/UDP(dport=53)/Auth(method = "imsi", authentication = "5021301234567894")
-#packet = IP(ttl = 100, dst = '10.0.2.15')/UDP(dport=54)/Auth(method = "ip", authentication = "10.0.0.250")
-#packet = IP(ttl = 100, dst = '10.0.2.15')/UDP(dport=55)/Auth(method = "token", authentication = "abcdefghilmnopqrstuvz")
+packet = IP(ttl = 100, dst = '10.0.2.15')/UDP(dport=53)/Auth(service_ip = "10.0.0.2", method = "imsi", authentication = "5021301234567894", port = 25, protocol = "UDP")
+#packet = IP(ttl = 100, dst = '10.0.2.15')/UDP(dport=54)/Auth(service_ip = "10.0.0.3", method = "ip", authentication = "10.0.0.250", port = 26, protocol = "TCP")
+#packet = IP(ttl = 100, dst = '10.0.2.15')/UDP(dport=55)/Auth(service_ip = "10.0.0.4", method = "token", authentication = "abcdefghilmnopqrstuvz", port = 26, protocol = "TCP")
 
 receiver = threading.Thread(target = receive)
 receiver.start()
