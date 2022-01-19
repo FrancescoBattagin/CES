@@ -1,7 +1,3 @@
-import grpc
-import os
-import sys
-import p4runtime_sh.shell as sh
 from p4runtime_sh.shell import PacketIn
 import time
 from scapy.all import *
@@ -15,13 +11,17 @@ import inotify.adapters
 policies_list = []
 mac_addresses = {}
 
-#Auth layer definition
+#add - to each value but last one
+def auth_param(param):
+    return param + "-"
+
+#layer Auth definition
 class Auth(Packet):
     fields_desc = []
-    fields_desc.append(StrLenField("service_ip", "10.0.0.1")) #10.0.0.1 as default
-    fields_desc.append(StrLenField("method", "imsi")) #imsi as default
-    fields_desc.append(StrLenField("authentication", "310170845466094")) #310170845466094 as default
-    fields_desc.append(StrLenField("port", 80)) #80 as default
+    fields_desc.append(StrLenField("service_ip", auth_param("10.0.2.15"))) #10.0.0.1 as default
+    fields_desc.append(StrLenField("method", auth_param("imsi"))) #imsi as default
+    fields_desc.append(StrLenField("authentication", auth_param("310170845466094"))) #310170845466094 as default
+    fields_desc.append(StrLenField("port", auth_param("80"))) #80 as default
     fields_desc.append(StrLenField("protocol", "TCP")) #TCP as default
 
 #check if PolicyDB has been modified
@@ -181,7 +181,7 @@ def addOpenEntry(ip_src, ip_dst, port, ether_dst, egress_port, ether_src):
     te.priority = 1
     te.insert()
     print("[!] New open entry added")
-    reply = threading.Thread(target = waitForReply(ip_dst, ip_src, port, ether_src)).start() #another thread not to block orchestrator
+    reply = threading.Thread(target = waitForReply(ip_dst, ip_src, port, ether_src)) #another thread not to block orchestrator
     reply.start()
     reply.join()
     te.delete() #entry to be deleted anyway
@@ -191,20 +191,11 @@ def addOpenEntry(ip_src, ip_dst, port, ether_dst, egress_port, ether_src):
 def waitForReply(ip_dst, ip_src, dport, ether_src):
     global mac_addresses
     timeout = time.time() + 2.0 #2 sec or more
+    packet_in = sh.PacketIn()
     while True:
-        packets = None
         print("Waiting for reply")
-        packet_in = sh.PacketIn()
 
-        def collecting_packets(packets):
-            packets += packet_in.sniff(timeout=5)
-
-        packet_collector = threading.Thread(target = collecting_packets, args = (packets, ))
-        packet_collector.start()
-        print("[!] packet_collector started")
-        packet_collector.join()
-        print("[!] packet_collector ended")
-        for streamMessageResponse in packets:
+        for streamMessageResponse in packet_in.sniff(timeout = 5):
             packet = streamMessageResponse.packet
             if streamMessageResponse.WhichOneof('update') =='packet':
                 packet_payload = packet.payload
@@ -268,7 +259,7 @@ def lookForPolicy(policyList, pkt):
     found = False
     print("[!] Policies: \n")
     print(policyList)
-        
+
     pkt_ip = pkt.getlayer(IP)
     src = pkt_ip.src
     dst = pkt_ip.dst
@@ -280,13 +271,13 @@ def lookForPolicy(policyList, pkt):
     pkt_udp = pkt.getlayer(UDP)
     sport = pkt_udp.sport
     dport = pkt_udp.dport
-    
-    pkt_auth = pkt.getlayer(Auth)
-    service_ip = pkt_auth.service_ip
-    method = pkt_auth.method
-    authentication = pkt_auth.authentication
-    port = pkt_auth.port
-    protocol = pkt_auth.protocol
+
+    pkt_auth = str(pkt.getlayer(Raw)).split("-")
+    service_ip = pkt_auth[0][2:] #remove 'b
+    method = pkt_auth[1]
+    authentication = pkt_auth[2]
+    port = pkt_auth[3]
+    protocol = pkt_auth[4][:-1] #remove '
 
     print("\nsrc_ether: " + ether_src)
     print("dst_ether: " + ether_dst)
@@ -297,14 +288,16 @@ def lookForPolicy(policyList, pkt):
     print("service_ip: " + service_ip)
     print("method: " + method)
     print("authentication: " + authentication)
-    print("port: " + str(port))
-    print("protocol " + protocol)
+    print("port: " + port)
+    print("protocol: " + protocol)
     
     for policy in policyList:
-        if service_ip == policy.get("ip") and port == policy.get("port") and protocol == policy.get("protocol"):
+        if service_ip == policy.get("ip") and int(port) == policy.get("port") and protocol == policy.get("protocol"):
+            print("inside 1st if")
             for user in policy.get("allowed_users"):
                 if method == "ip":
                     if user.get("method") == "ip" and user.get("user") == authentication:
+                        print("inside if ip-method and user found")
                         found = True
                         addOpenEntry(authentication, service_ip, port, ether_dst, 2, ether_src) #substitute specific egress_port; 2 in my case
                         break
@@ -317,14 +310,14 @@ def lookForPolicy(policyList, pkt):
                                 if user.get("method") == ue.get("method") and ue.get("method") == method and user.get("user") == ue.get("user") and ue.get("user") == authentication: #same method and same id (imsi or token)
                                     found = True
                                     addOpenEntry(user.get("actual_ip"), policy.get("ip"), policy.get("port"), ether_dst, 2, ether_src)
-                                    break    
+                                    break
     if not found:
         #packet drop
         packet = None
         print("[!] Packet dropped\n\n\n")
 
 #add new ip-mac entry to dictionary
-def arpManagement(packet):
+ddef arpManagement(packet):
     global mac_addresses
     mac = packet.getlayer(Ether).src
     ip = packet.getlayer(ARP).psrc
@@ -356,17 +349,17 @@ def packetHandler(streamMessageResponse):
         if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":
             print("[!] Ping from: " + pkt_src)
             print("[!] ICMP layer not supported in p4 switch, not used")
-        elif pkt_ip != None:
-            print("[!] Packet received: " + pkt_src + " --> " + pkt_dst)
-        elif pkt_arp != None: #[!!!] Test condition
+        elif pkt_arp != None:
             print("[!] ARP info")
             arpManagement(pkt)
-        elif pkt_udp != None and pkt_auth != None: #dst mac already known and UDP packet w\ auth layer
-            if pkt_src in mac_addresses and pkt_dst in mac_addresses:
-                lookForPolicy(policies_list, pkt)
-            else:
-                print("[!] MAC info not known, still waiting for a gratuitous ARP packet. Here are all the collected info")
-                print(mac_addresses)
+        elif pkt_ip != None:
+            print("[!] Packet received: " + pkt_src + " --> " + pkt_dst)
+            if pkt_udp != None and pkt_auth != None: #dst mac already known and UDP packet w\ auth layer
+                if pkt_src in mac_addresses and pkt_dst in mac_addresses:
+                    lookForPolicy(policies_list, pkt)
+                else:
+                    print("[!] MAC info not known, still waiting for a gratuitous ARP packet. Here are all the collected info")
+                    print(mac_addresses)
         else:
             print("[!] No needed layers")
 
@@ -396,22 +389,13 @@ def controller():
     detector.start()
 
     #listening for new packets
+    bind_layers(UDP, Auth, sport=1298, dport = 1299)
+    bind_layers(Auth, Raw)
+    packet_in = sh.PacketIn()
     while True:
-        packets = []
         print("[!] Waiting for receive something")
-        packet_in = sh.PacketIn()
-        
-        def collecting_packets(packets):
-            packets += packet_in.sniff(timeout=5)
-        
-        packet_collector = threading.Thread(target = collecting_packets, args = (packets, ))
-        packet_collector.start()
-        #print("[!] packet_collector started")
-        packet_collector.join()
-        #print("[!] packet_collector ended")
         threads = []
-        print("[!] Packets size: " + str(len(packets)))
-        for streamMessageResponse in packets:
+        for streamMessageResponse in packet_in.sniff(timeout=5):
             packet_handler = threading.Thread(target = packetHandler, args = (streamMessageResponse,))
             threads.append(packet_handler)
             packet_handler.start()
