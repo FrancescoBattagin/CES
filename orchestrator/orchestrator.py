@@ -340,6 +340,14 @@ def arpManagement(packet):
         mac_addresses[ip] = mac
     print(mac_addresses)
 
+#send reply to src
+def forward_packet(packet_payload, ether_dst):
+    packet_out = sh.PacketOut()
+    packet_out.payload = packet_payload
+    packet_out.metadata["egress_port"] = 1
+    packet_out.metadata["dstAddr"] = ether_dst
+    packet_out.send()
+
 #handle a just received packet
 def packetHandler(streamMessageResponse):
     global mac_addresses
@@ -383,6 +391,8 @@ def packetHandler(streamMessageResponse):
                         print(dictionary["ether_src"])
                         addEntry(pkt_src, pkt_dst, pkt.getlayer(TCP).dport, dictionary["port"], dictionary["ether_src"], 1)
                         addEntry(pkt_dst, pkt_src, dictionary["port"], pkt.getlayer(TCP).dport, ether_src, 2)
+                        forward_packet(packet_payload, dictionary["ether_src"])
+
 
         if not reply:
             if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":
