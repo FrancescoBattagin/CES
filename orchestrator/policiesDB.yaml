@@ -9,10 +9,10 @@
  allowed_users: 
  -
   method: 'ip' #other auth method: IP, SPA, ...
-  user: '10.0.0.1'
+  user: '10.0.0.2'
  -
-  method: 'imsi'
-  user: '5021301234567894'
+  method: 'token'
+  user: 'abcdefghilmnopqrstuvz'
  tee: True #trusted execution environment
  fs_encr: False #file system encryption
  net_encr: False #network encryption

@@ -53,7 +53,6 @@ header udp_t {
     bit<16> checksum;
 }
 
-@controller_header("packet_out")
 header packet_out_header_t {
     bit<16> egress_port;
 }

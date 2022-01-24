@@ -320,11 +320,12 @@ def lookForPolicy(policyList, pkt):
                     stream = open("../orchestrator/ip_map.yaml", 'r')
                     mapping = yaml.safe_load(stream)
                     for service in mapping:
-                        if service.get("serviceName") == policy.get("serviceName") and service.get("ip") == policy.get("ip"): #same service and ip
-                            for user in service.get("allowed_users"):
+                        if service.get("serviceName") == policy.get("serviceName") and service.get("ip") == policy.get("ip") and str(service.get("port")) == str(policy.get("port")): #same service, ip and port
+                            for ue in service.get("allowed_users"):
                                 if user.get("method") == ue.get("method") and ue.get("method") == method and user.get("user") == ue.get("user") and ue.get("user") == authentication: #same method and same id (imsi or token)
                                     found = True
-                                    addOpenEntry(user.get("actual_ip"), policy.get("ip"), policy.get("port"), ether_dst, 2, ether_src)
+                                    print("[!] Retrieved ip: " + ue.get("actual_ip"))
+                                    addOpenEntry(ue.get("actual_ip"), policy.get("ip"), policy.get("port"), ether_dst, 2, ether_src)
                                     break
     if not found:
         #packet drop

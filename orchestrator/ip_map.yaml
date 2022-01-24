@@ -1,24 +1,19 @@
 -
  serviceName: "name" #application name
- ip: '172.0.0.1'
+ ip: '10.0.0.3'
+ port: 80
  allowed_users: 
  -
-  method: 'token' #other auth method: IMSI, ...
-  imsi: '310170845466094'
-  actual_ip: '10.0.0.1'
-  sport: 53
-  token: "abcdefghilmopqrstuvz123456789"
+  method: 'imsi' #other auth method: IMSI, ...
+  user: "5021301234567894"
+  actual_ip: '10.0.0.4'
  -
-  method: 'imsi' #other auth method: IP, SPA, ...
-  imsi: '310170845466094'
-  actual_ip: '10.0.0.3'
-  sport: 22
-  token: "abcdefghilmopqrstuvz123456789"
+  method: 'token' #other auth method: IP, SPA, ...
+  actual_ip: '10.0.0.1'
+  user: "abcdefghilmnopqrstuvz"
  -
   method: 'imsi'
-  imsi: '5021301234567894'
+  user: '5021301234567894'
   actual_ip: '10.0.0.6'
-  sport: 80
-  token: "abcdefghilmopqrstuvz123456789"
     
 #...
