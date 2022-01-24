@@ -2,7 +2,6 @@
 #include <v1model.p4>
 
 const bit<16> TYPE_IPV4 = 0x0800;
-const bit<16> TYPE_IPV6 = 0x86dd;
 #define CONTROLLER_PORT 255
 
 
@@ -54,6 +53,7 @@ header udp_t {
     bit<16> checksum;
 }
 
+@controller_header("packet_out")
 header packet_out_header_t {
     bit<16> egress_port;
 }

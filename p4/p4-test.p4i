@@ -867,7 +867,6 @@ package V1Switch<H, M>(Parser<H, M> p,
 # 3 "p4-test.p4" 2
 
 const bit<16> TYPE_IPV4 = 0x0800;
-const bit<16> TYPE_IPV6 = 0x86dd;
 
 
 
@@ -919,6 +918,7 @@ header udp_t {
     bit<16> checksum;
 }
 
+@controller_header("packet_out")
 header packet_out_header_t {
     bit<16> egress_port;
 }

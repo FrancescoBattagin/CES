@@ -3,6 +3,7 @@ import os
 import sys
 import p4runtime_sh.shell as sh
 from p4runtime_sh.shell import PacketIn
+from p4runtime_sh.shell import PacketOut
 import time
 from scapy.all import *
 import yaml
@@ -150,13 +151,13 @@ def editIPPolicies(old_ip, new_ip, port):
     global strict_entry_history
     for dictionary in strict_entry_history:
         if dictionary["ip_dst"] == old_ip:
-            dictionary["te"].delete()        
+            dictionary["te"].delete()
             addEntry(dictionary["ip_src"], new_ip, dictionary["dport"], dictionary["sport"], dictionary["dstAddr"], dictionary["egress_port"])
             dictionary["ip_dst"] == new_ip
 
     for dictionary in strict_entry_history:
         if dictionary["ip_src"] == old_ip:
-            dictionary["te"].delete()        
+            dictionary["te"].delete()
             addEntry(new_ip, dictionary["ip_dst"], dictionary["dport"], dictionary["sport"], dictionary["dstAddr"], dictionary["egress_port"])
             dictionary["ip_src"] == new_ip
 
@@ -165,13 +166,13 @@ def editPortPolicies(ip, new_port):
     global strict_entry_history
     for dictionary in strict_entry_history:
         if dictionary["ip_dst"] == ip:
-            dictionary["te"].delete()        
+            dictionary["te"].delete()
             addEntry(dictionary["ip_src"], ip, new_port, dictionary["sport"], dictionary["dstAddr"], dictionary["egress_port"])
             dictionary["dport"] == new_port
 
     for dictionary in strict_entry_history:
         if dictionary["ip_src"] == ip:
-            dictionary["te"].delete()        
+            dictionary["te"].delete()
             addEntry(ip, dictionary["ip_dst"], dictionary["dport"], new_port, dictionary["dstAddr"], dictionary["egress_port"])
             dictionary["sport"] == new_port
 
@@ -341,12 +342,13 @@ def arpManagement(packet):
     print(mac_addresses)
 
 #send reply to src
-def forward_packet(packet_payload, ether_dst):
-    packet_out = sh.PacketOut()
-    packet_out.payload = packet_payload
-    packet_out.metadata["egress_port"] = 1
-    packet_out.metadata["dstAddr"] = ether_dst
-    packet_out.send()
+def forward_packet(packet):
+    ether = packet.getlayer(Ether)
+    ip = packet.getlayer(IP)
+    tcp = packet.getlayer(TCP)
+    packet_out = ether/ip/tcp
+    sendp(packet_out, iface='p4r-eth0')
+    print("[!] Reply forwarded")
 
 #handle a just received packet
 def packetHandler(streamMessageResponse):
@@ -357,8 +359,12 @@ def packetHandler(streamMessageResponse):
     if streamMessageResponse.WhichOneof('update') =='packet':
         packet_payload = packet.payload
         pkt = Ether(_pkt=packet.payload)
-        ether_src = pkt.getlayer(Ether).src
-        ether_dst = pkt.getlayer(Ether).dst
+
+        if pkt.getlayer(Ether) != None:
+            ether_src = pkt.getlayer(Ether).src
+            ether_dst = pkt.getlayer(Ether).dst
+        else:
+            print("[!] Ether layer not present")
 
         if pkt.getlayer(IP) != None:
             pkt_src = pkt.getlayer(IP).src
@@ -391,8 +397,7 @@ def packetHandler(streamMessageResponse):
                         print(dictionary["ether_src"])
                         addEntry(pkt_src, pkt_dst, pkt.getlayer(TCP).dport, dictionary["port"], dictionary["ether_src"], 1)
                         addEntry(pkt_dst, pkt_src, dictionary["port"], pkt.getlayer(TCP).dport, ether_src, 2)
-                        forward_packet(packet_payload, dictionary["ether_src"])
-
+                        forward_packet(pkt)
 
         if not reply:
             if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":
