@@ -22,7 +22,7 @@ open_entry_history = []
 #strict_entry_history = [{"ip_dst":"10.0.0.3", "ip_src":"10.0.0.1", "dport":80, "sport":1298, "dstAddr":"ff:ff:ff:ff:ff:ff", egress_port":2 "te":table_entry}, {...}, ...]
 strict_entry_history = []
 
-#add - to each value but last one
+#add - to each value but last one for parsing (inside src); just for the sake of completeness
 def auth_param(param):
     return param + "-"
 
@@ -128,7 +128,7 @@ def mod_manager():
 def delPolicies(ip):
     global strict_entry_history
     for dictionary in strict_entry_history:
-        if dictionary["ip_dst"] == ip:
+        if dictionary["ip_dst"] == ip or dictionary["ip_src"] == ip:
             dictionary["te"].delete()
             strict_entry_history.remove(dictionary)
 
@@ -357,9 +357,7 @@ def packetHandler(streamMessageResponse):
         if pkt.getlayer(Ether) != None:
             ether_src = pkt.getlayer(Ether).src
             ether_dst = pkt.getlayer(Ether).dst
-        else:
-            print("[!] Ether layer not present")
-
+        
         if pkt.getlayer(IP) != None:
             pkt_src = pkt.getlayer(IP).src
             pkt_dst = pkt.getlayer(IP).dst
