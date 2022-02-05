@@ -1,5 +1,7 @@
 import grpc
 import os
+import random
+import hashlib
 import sys
 import p4runtime_sh.shell as sh
 from p4runtime_sh.shell import PacketIn
@@ -15,6 +17,8 @@ import inotify.adapters
 
 policies_list = []
 mac_addresses = {}
+#keys = [{"5021301234567894":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b", ...} imsi:key
+keys = {}
 
 #open_entry_history = [{"ip_dst":"10.0.0.3", "ip_src":"10.0.0.1", "port":80, "ether_src":"ff:ff:ff:ff:ff:ff", "te":table_entry}, {...}, ...]
 open_entry_history = []
@@ -22,7 +26,7 @@ open_entry_history = []
 #strict_entry_history = [{"ip_dst":"10.0.0.3", "ip_src":"10.0.0.1", "dport":80, "sport":1298, "dstAddr":"ff:ff:ff:ff:ff:ff", egress_port":2 "te":table_entry}, {...}, ...]
 strict_entry_history = []
 
-#add - to each value but last one for parsing (inside src); just for the sake of completeness
+#add - to each value but last one
 def auth_param(param):
     return param + "-"
 
@@ -34,6 +38,14 @@ class Auth(Packet):
     fields_desc.append(StrLenField("authentication", auth_param("310170845466094"))) #310170845466094 as default
     fields_desc.append(StrLenField("port", auth_param("80"))) #80 as default
     fields_desc.append(StrLenField("protocol", "TCP")) #TCP as default
+
+class DH(Packet):
+    '''Add a '-' at the and of each field value but the last for parsing inside orchestrator'''
+    fields_desc = []
+    fields_desc.append(StrLenField("p", "2-"))
+    fields_desc.append(StrLenField("g", "5-"))
+    fields_desc.append(StrLenField("A", "10-"))
+    fields_desc.append(StrLenField("imsi", "5021301234567894-"))
 
 #check if PolicyDB has been modified
 def mod_detector():
@@ -128,7 +140,7 @@ def mod_manager():
 def delPolicies(ip):
     global strict_entry_history
     for dictionary in strict_entry_history:
-        if dictionary["ip_dst"] == ip or dictionary["ip_src"] == ip:
+        if dictionary["ip_dst"] == ip:
             dictionary["te"].delete()
             strict_entry_history.remove(dictionary)
 
@@ -341,8 +353,22 @@ def forward_packet(packet):
     ip = packet.getlayer(IP)
     tcp = packet.getlayer(TCP)
     packet_out = ether/ip/tcp
-    sendp(packet_out, iface='p4r-eth0')
+    sendp(packet_out, iface='eth1')
     print("[!] Reply forwarded")
+
+#diffie-hellman key computation
+def key_computation(p, g, A, imsi):
+    global keys
+    if imsi not in keys:
+        b=random.randint(10,20)
+        B = (int(g)**int(b)) % int(p)
+        #sends B to ue
+        keyB = hashlib.sha256(str((int(A)**int(b)) % int(p)).encode()).hexdigest()
+        keys[imsi] = keyB
+    else:
+        print("[!] This imsi has already a private key")
+    print("[!] Keys:")
+    print(keys)
 
 #handle a just received packet
 def packetHandler(streamMessageResponse):
@@ -357,7 +383,9 @@ def packetHandler(streamMessageResponse):
         if pkt.getlayer(Ether) != None:
             ether_src = pkt.getlayer(Ether).src
             ether_dst = pkt.getlayer(Ether).dst
-        
+        else:
+            print("[!] Ether layer not present")
+
         if pkt.getlayer(IP) != None:
             pkt_src = pkt.getlayer(IP).src
             pkt_dst = pkt.getlayer(IP).dst
@@ -371,6 +399,7 @@ def packetHandler(streamMessageResponse):
         pkt_arp = pkt.getlayer(ARP)
         pkt_udp = pkt.getlayer(UDP)
         pkt_auth = pkt.getlayer(Auth)
+        pkt_dh = pkt.getlayer(DH)
 
         reply = False
         #check for waited replies in open_entry_history
@@ -403,12 +432,23 @@ def packetHandler(streamMessageResponse):
                 if pkt.getlayer(TCP) != None:
                     print("sport: " + str(pkt.getlayer(TCP).sport))
                     print("dport: " + str(pkt.getlayer(TCP).dport))
-                if pkt_udp != None and pkt_auth != None: #dst mac already known and UDP packet w\ auth layer
-                    if pkt_src in mac_addresses and pkt_dst in mac_addresses:
-                        lookForPolicy(policies_list, pkt)
-                    else:
-                        print("[!] MAC info not known, still waiting for a gratuitous ARP packet. Here are all the collected info")
-                        print(mac_addresses)
+                if pkt_udp != None:
+                    if pkt_auth != None: #dst mac already known and UDP packet w\ auth layer
+                        if pkt_src in mac_addresses and pkt_dst in mac_addresses:
+                            lookForPolicy(policies_list, pkt)
+                        else:
+                            print("[!] MAC info not known, still waiting for a gratuitous ARP packet. Here are all the collected info")
+                            print(mac_addresses)
+                    elif pkt_dst == "192.168.56.4" and pkt_udp.dport == 100:
+                        print("KEY EXCHANGE")
+                        print(pkt.getlayer(Raw))
+                        pkt_raw = str(pkt.getlayer(Raw)).split("-")
+                        print(pkt_raw)
+                        p = pkt_raw[0][2:] #remove 'b
+                        g = pkt_raw[1]
+                        A = pkt_raw[2]
+                        imsi = pkt_raw[3][:-1] #remove '
+                        key_computation(p, g, A, imsi)
             else:
                 print("[!] No needed layers")
 
@@ -419,7 +459,7 @@ def controller():
     #connection
     sh.setup(
         device_id=1,
-        grpc_addr='172.17.0.1:55389', #substitute ip and port with the ones of the specific switch
+        grpc_addr='127.0.0.1:50051', #substitute ip and port with the ones of the specific switch
         election_id=(1, 0), # (high, low)
         config=sh.FwdPipeConfig('../p4/p4-test.p4info.txt','../p4/p4-test.json')
     )
@@ -440,6 +480,7 @@ def controller():
     #listening for new packets
     bind_layers(UDP, Auth, sport=1298, dport = 1299)
     bind_layers(Auth, Raw)
+    bind_layers(DH, Raw)
     packet_in = sh.PacketIn()
     threads = []
     while True:
