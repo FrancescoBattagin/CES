@@ -357,13 +357,15 @@ def forward_packet(packet):
     print("[!] Reply forwarded")
 
 #diffie-hellman key computation
-def key_computation(p, g, A, imsi):
+def key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp):
     global keys
     if imsi not in keys:
         b=random.randint(10,20)
         B = (int(g)**int(b)) % int(p)
-        #sends B to ue
+        packet = Ether(dst = pkt_ether.src)/IP(src = pkt_ip.dst, dst = pkt_ip.src)/UDP(sport = pkt_udp.dport, dport = pkt_udp.sport)/Raw(load = '-' + str(B) + '-')
+        sendp(packet, iface='eth1')
         keyB = hashlib.sha256(str((int(A)**int(b)) % int(p)).encode()).hexdigest()
+        print(keyB)
         keys[imsi] = keyB
     else:
         print("[!] This imsi has already a private key")
@@ -380,7 +382,8 @@ def packetHandler(streamMessageResponse):
         packet_payload = packet.payload
         pkt = Ether(_pkt=packet.payload)
 
-        if pkt.getlayer(Ether) != None:
+        pkt_ether = pkt.getlayer(Ether)
+        if pkt_ether != None:
             ether_src = pkt.getlayer(Ether).src
             ether_dst = pkt.getlayer(Ether).dst
         else:
@@ -448,7 +451,7 @@ def packetHandler(streamMessageResponse):
                         g = pkt_raw[1]
                         A = pkt_raw[2]
                         imsi = pkt_raw[3][:-1] #remove '
-                        key_computation(p, g, A, imsi)
+                        key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp)
             else:
                 print("[!] No needed layers")
 

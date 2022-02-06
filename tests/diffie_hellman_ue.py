@@ -51,11 +51,16 @@ print(imsi)
 #answer = sr1(pkt, iface='eth1')
 sendp(pkt, iface = 'eth1')
 
-#[...] receives B
-#B = answer.getlayer(Raw)
-#keyA = hashlib.sha256(str((B**a) % p).encode()).hexdigest()
-#print(keyA)
+def key_computation(pkt):
+    print("Raw: ")
+    raw = str(pkt.getlayer(Raw)).split("-")
+    B = raw[1]
+    print(B)
+    keyA = hashlib.sha256(str((int(B)**int(a)) % int(p)).encode()).hexdigest()
+    print(keyA)
 
+#waits for B
+packet = sniff(prn = lambda x:key_computation(x), count = 1, iface='eth1', filter = 'src host 192.168.56.4 and src port 100')
 
 #--- controller ---
 #[...] receives p, g, A
