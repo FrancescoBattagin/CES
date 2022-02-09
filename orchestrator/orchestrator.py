@@ -11,41 +11,22 @@ from scapy.all import *
 import yaml
 import threading
 import inotify.adapters
+import json, base64
+import hmac, hashlib
 
 # No need to import p4runtime_lib
 # import p4runtime_lib.bmv2
 
 policies_list = []
 mac_addresses = {}
-#keys = [{"5021301234567894":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b", ...} imsi:key
-keys = {}
+#keys = [{"imsi":"5021301234567894", "key":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b", "count":1}, {...}, ...]
+keys = []
 
 #open_entry_history = [{"ip_dst":"10.0.0.3", "ip_src":"10.0.0.1", "port":80, "ether_src":"ff:ff:ff:ff:ff:ff", "te":table_entry}, {...}, ...]
 open_entry_history = []
 
 #strict_entry_history = [{"ip_dst":"10.0.0.3", "ip_src":"10.0.0.1", "dport":80, "sport":1298, "dstAddr":"ff:ff:ff:ff:ff:ff", egress_port":2 "te":table_entry}, {...}, ...]
 strict_entry_history = []
-
-#add - to each value but last one
-def auth_param(param):
-    return param + "-"
-
-#layer Auth definition
-class Auth(Packet):
-    fields_desc = []
-    fields_desc.append(StrLenField("service_ip", auth_param("10.0.2.15"))) #10.0.0.1 as default
-    fields_desc.append(StrLenField("method", auth_param("imsi"))) #imsi as default
-    fields_desc.append(StrLenField("authentication", auth_param("310170845466094"))) #310170845466094 as default
-    fields_desc.append(StrLenField("port", auth_param("80"))) #80 as default
-    fields_desc.append(StrLenField("protocol", "TCP")) #TCP as default
-
-class DH(Packet):
-    '''Add a '-' at the and of each field value but the last for parsing inside orchestrator'''
-    fields_desc = []
-    fields_desc.append(StrLenField("p", "2-"))
-    fields_desc.append(StrLenField("g", "5-"))
-    fields_desc.append(StrLenField("A", "10-"))
-    fields_desc.append(StrLenField("imsi", "5021301234567894-"))
 
 #check if PolicyDB has been modified
 def mod_detector():
@@ -275,43 +256,20 @@ def getPoliciesDB(packet):
         print(e)
 
 #look for policy and add new entries if found (when a packet is received)
-def lookForPolicy(policyList, pkt):
+def lookForPolicy(policyList, auth_dict, pkt_ip):
     global mac_addresses
     found = False
     print("[!] Policies: \n")
     print(policyList)
 
-    pkt_ip = pkt.getlayer(IP)
-    src = pkt_ip.src
-    dst = pkt_ip.dst
+    service_ip = auth_dict["service_ip"]
+    method = auth_dict["method"]
+    authentication = auth_dict["authentication"]
+    port = auth_dict["port"]
+    protocol = auth_dict["protocol"]
 
-    pkt_ether = pkt.getlayer(Ether)
-    ether_src = mac_addresses[src]
-    ether_dst = mac_addresses[dst]
-
-    pkt_udp = pkt.getlayer(UDP)
-    sport = pkt_udp.sport
-    dport = pkt_udp.dport
-
-    #raw parsing
-    pkt_auth = str(pkt.getlayer(Raw)).split("-")
-    service_ip = pkt_auth[0][2:] #remove 'b
-    method = pkt_auth[1]
-    authentication = pkt_auth[2]
-    port = pkt_auth[3]
-    protocol = pkt_auth[4][:-1] #remove '
-
-    print("\nsrc_ether: " + ether_src)
-    print("dst_ether: " + ether_dst)
-    print("src_ip: " + src)
-    print("dst_ip: " + dst)
-    print("sport: " + str(sport))
-    print("dport: " + str(dport))
-    print("service_ip: " + service_ip)
-    print("method: " + method)
-    print("authentication: " + authentication)
-    print("port: " + port)
-    print("protocol: " + protocol)
+    ether_src = mac_addresses[pkt_ip.src]
+    ether_dst = mac_addresses[pkt_ip.dst]
 
     for policy in policyList:
         if service_ip == policy.get("ip") and int(port) == policy.get("port") and protocol == policy.get("protocol"):
@@ -359,22 +317,34 @@ def forward_packet(packet):
 #diffie-hellman key computation
 def key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp):
     global keys
-    if imsi not in keys:
-        b=random.randint(10,20)
+    global mac_addresses
+    found = False
+    for dictionary in keys:
+        if dictionary["imsi"] == imsi:
+            found = True
+    if not found:
+        b = random.randint(10,20)
         B = (int(g)**int(b)) % int(p)
-        packet = Ether(dst = pkt_ether.src)/IP(src = pkt_ip.dst, dst = pkt_ip.src)/UDP(sport = pkt_udp.dport, dport = pkt_udp.sport)/Raw(load = '-' + str(B) + '-')
+        packet = Ether(dst = mac_addresses[pkt_ip.src])/IP(src = pkt_ip.dst, dst = pkt_ip.src)/UDP(sport = pkt_udp.dport, dport = pkt_udp.sport)/Raw(load = '-' + str(B) + '-')
+        te = sh.TableEntry('my_ingress.forward')(action='my_ingress.ipv4_forward')
+        te.match["hdr.ipv4.srcAddr"] = pkt_ip.dst
+        te.match["hdr.ipv4.dstAddr"] = pkt_ip.src
+        te.match["dst_port"] = str(pkt_udp.sport)
+        te.action["dstAddr"] = pkt_ether.src
+        te.action["port"] = '1'
+        te.priority = 1
+        te.insert()
         sendp(packet, iface='eth1')
+        te.delete()
         keyB = hashlib.sha256(str((int(A)**int(b)) % int(p)).encode()).hexdigest()
-        print(keyB)
-        keys[imsi] = keyB
+        keys.append({"imsi":imsi, "key":keyB, "count":0})
     else:
         print("[!] This imsi has already a private key")
-    print("[!] Keys:")
-    print(keys)
 
 #handle a just received packet
 def packetHandler(streamMessageResponse):
     global mac_addresses
+    global keys
     print("[!] Packets received")
     packet = streamMessageResponse.packet
 
@@ -401,8 +371,6 @@ def packetHandler(streamMessageResponse):
         pkt_ip = pkt.getlayer(IP)
         pkt_arp = pkt.getlayer(ARP)
         pkt_udp = pkt.getlayer(UDP)
-        pkt_auth = pkt.getlayer(Auth)
-        pkt_dh = pkt.getlayer(DH)
 
         reply = False
         #check for waited replies in open_entry_history
@@ -435,27 +403,55 @@ def packetHandler(streamMessageResponse):
                 if pkt.getlayer(TCP) != None:
                     print("sport: " + str(pkt.getlayer(TCP).sport))
                     print("dport: " + str(pkt.getlayer(TCP).dport))
-                if pkt_udp != None:
-                    if pkt_auth != None: #dst mac already known and UDP packet w\ auth layer
-                        if pkt_src in mac_addresses and pkt_dst in mac_addresses:
-                            lookForPolicy(policies_list, pkt)
-                        else:
-                            print("[!] MAC info not known, still waiting for a gratuitous ARP packet. Here are all the collected info")
-                            print(mac_addresses)
-                    elif pkt_dst == "192.168.56.4" and pkt_udp.dport == 100:
-                        print("KEY EXCHANGE")
-                        print(pkt.getlayer(Raw))
-                        pkt_raw = str(pkt.getlayer(Raw)).split("-")
-                        print(pkt_raw)
-                        p = pkt_raw[0][2:] #remove 'b
-                        g = pkt_raw[1]
-                        A = pkt_raw[2]
-                        imsi = pkt_raw[3][:-1] #remove '
-                        key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp)
+                elif pkt_udp != None:
+                    if pkt_dst == "192.168.56.4":
+                        if pkt_udp.dport == 100:
+                            print("Key negotiation packet")
+                            dh = str(pkt.getlayer(Raw))[2:-1] #remove b' and '
+                            dh = json.loads(dh)
+                            p = dh["p"]
+                            g = dh['g']
+                            A = dh['A']
+                            imsi = dh['imsi']
+                            key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp)
+                        elif pkt_udp.dport == 101:
+                            print("[!] Authentication packet")
+                            if pkt_src in mac_addresses and pkt_dst in mac_addresses:
+                                pkt_raw = str(pkt.getlayer(Raw)).split("---")
+                                hmac_hex = pkt_raw[1][:-1] #remove '
+                                auth = pkt_raw[0][2:] #remove b'
+
+                                def hmac_check(auth, hmac_hex):
+                                    auth_dict = json.loads(auth)
+                                    imsi = auth_dict["imsi"]
+                                    count = auth_dict["count"]
+                                    found = False
+                                    for dictionary in keys:
+                                        if dictionary["imsi"] == imsi and dictionary["count"] < count:
+                                            found = True
+                                            key = dictionary["key"]
+                                            dictionary["count"] = count
+                                            message_bytes = auth.encode('ascii')
+                                            base64_bytes = base64.b64encode(message_bytes)
+                                            hmac_hex_new = hmac.new(bytes(key, 'utf-8'), base64_bytes, hashlib.sha512).hexdigest()
+                                            if hmac_hex_new == hmac_hex:
+                                                print("[!] HMAC is the same! Looking for policies...")
+                                                lookForPolicy(policies_list, auth_dict, pkt_ip)
+                                            else:
+                                                print("[!] HMAC is different. R u a thief?")
+                                            break
+                                    if not found:
+                                        print("[!] User has not negotiated key yet")
+
+                                hmac_check(auth, hmac_hex)
+
+                            else:
+                                print("[!] MAC info not known, still waiting for a gratuitous ARP packet. Here are all the collected info")
+                                print(mac_addresses)
             else:
                 print("[!] No needed layers")
 
-#setup connection \w switch, sets policies_list, starts mod_detector thread and listens for new packets
+#setup connection w/ switch, sets policies_list, starts mod_detector thread and listens for new packets
 def controller():
     global policies_list
 
@@ -481,9 +477,6 @@ def controller():
     detector.start()
 
     #listening for new packets
-    bind_layers(UDP, Auth, sport=1298, dport = 1299)
-    bind_layers(Auth, Raw)
-    bind_layers(DH, Raw)
     packet_in = sh.PacketIn()
     threads = []
     while True:

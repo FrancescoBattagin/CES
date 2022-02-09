@@ -1,40 +1,79 @@
+import random
+import hashlib
+import sys
 from scapy.all import *
-import time
-import requests
+import json
+from json import JSONEncoder
 
-SELF_MAC = 'b6:71:cd:b3:d5:f2'
-BCAST_MAC = 'ff:ff:ff:ff:ff:ff'
+controller_ip = '192.168.56.4'
+controller_ether = '08:00:27:36:e0:ab'
+BCAST_MAC = "ff:ff:ff:ff:ff:ff"
+SELF_MAC = "08:00:27:13:cd:9d"
+self_ip = "192.168.56.1"
+key = ''
 
-packet = Ether(dst = BCAST_MAC, src = SELF_MAC, type = 0x0806)/ARP(psrc = "10.0.0.1", hwsrc = SELF_MAC, pdst = "172.17.0.1")
-sendp(packet, iface="src-eth0")
+def isPrime(k):
+    if k==2 or k==3: return True
+    if k%2==0 or k<2: return False
+    for i in range(3, int(k**0.5)+1, 2):
+        if k%i==0:
+            return False
 
-time.sleep(2)
+    return True
 
-def auth_param(param):
-	return param + "-"
+class DH():
 
-class Auth(Packet):
-    '''Add a '-' at the and of each field value but the last for parsing inside orchestrator'''
-    fields_desc = []
-    fields_desc.append(StrLenField("service_ip", auth_param("10.0.0.1"))) #10.0.0.1 as default
-    fields_desc.append(StrLenField("method", auth_param("imsi"))) #imsi as default
-    fields_desc.append(StrLenField("authentication", auth_param("310170845466094"))) #310170845466094 as default
-    fields_desc.append(StrLenField("port", auth_param("33440"))) #80 as default
-    fields_desc.append(StrLenField("protocol", "TCP")) #TCP as default
+    def __init__(self, p, g, A, imsi):
+        self.p = p
+        self.g = g
+        self.A = A
+        self.imsi = imsi
 
-packet = Ether(dst = BCAST_MAC, src = SELF_MAC)/IP(src="10.0.0.1", dst="10.0.0.3")/UDP(sport=1298, dport=1299)/Auth(service_ip = auth_param("10.0.0.3"), method = auth_param("ip"), authentication = auth_param("10.0.0.1"), port = auth_param("80"), protocol = "TCP")
+class MyEncoder(JSONEncoder):
+    def default(self, obj):
+        return obj.__dict__
 
-sendp(packet, iface="src-eth0")
 
-time.sleep(2)
+#generates prime numbers
+def dh(identity):
+    minPrime = 0
+    maxPrime = 1001
+    cached_primes = [i for i in range(minPrime,maxPrime) if isPrime(i)]
+    p = random.choice(cached_primes)
+    g = random.randint(2, 100)
+    a = random.randint(2, 100)
+    A = (g**a) % p
+    imsi = identity
 
-#URL = "http://10.0.0.3:80/get_file?name=tcp_test.py"
-#r = requests.get(url=URL)
-#print(r)
-packet = Ether(dst = "02:42:ba:6c:52:f5", src = SELF_MAC)/IP(src="10.0.0.1", dst="10.0.0.3")/TCP(sport=1298, dport=80, flags='S', seq=1000)
-sendp(packet, iface="src-eth0")
+    #[...] sends p, g, A to controller, waits for B
+    dh = DH(p, g, A, imsi)
+    dh = MyEncoder().encode(dh)
+    pkt = Ether(dst = BCAST_MAC, src = "08:00:27:36:e0:ab")/IP(src = self_ip, dst = controller_ip)/UDP(sport = 1298, dport = 100)/str(dh)
+    print(p)
+    print(g)
+    print(A)
+    print(imsi)
+    sendp(pkt, iface = 'eth1')
 
-time.sleep(10)
+    def key_computation(pkt):
+        global key
+        print("Raw: ")
+        raw = str(pkt.getlayer(Raw)).split("-")
+        B = raw[1]
+        print(B)
+        keyA = hashlib.sha256(str((int(B)**int(a)) % int(p)).encode()).hexdigest()
+        #print(keyA)
+        key = keyA
 
-packet = Ether(dst = "02:42:ba:6c:52:f5", src = SELF_MAC)/IP(src="10.0.0.1", dst="10.0.0.3")/TCP(sport=1298, dport=80, flags='A', seq=1001)
-sendp(packet, iface="src-eth0")
+    #waits for B
+    packet = sniff(prn = lambda x:key_computation(x), count = 1, iface='eth1', filter = 'src host 192.168.56.4 and src port 100')
+    return key
+
+#--- controller ---
+#[...] receives p, g, A
+#b=random.randint(10,20)
+#B = (g**b) % p
+#sends B to ue
+#keyB = hashlib.sha256(str((A**b) % p).encode()).hexdigest()
+#print(keyB)
+#saves key for specific ue

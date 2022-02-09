@@ -2,9 +2,15 @@ import random
 import hashlib
 import sys
 from scapy.all import *
+import json
+from json import JSONEncoder
 
 controller_ip = '192.168.56.4'
 controller_ether = '08:00:27:36:e0:ab'
+BCAST_MAC = "ff:ff:ff:ff:ff:ff"
+SELF_MAC = "08:00:27:13:cd:9d"
+self_ip = "192.168.56.1"
+key = ''
 
 def isPrime(k):
     if k==2 or k==3: return True
@@ -16,51 +22,52 @@ def isPrime(k):
     return True
 
 class DH(Packet):
-    '''Add a '-' at the and of each field value but the last for parsing inside orchestrator'''
-    fields_desc = []
-    fields_desc.append(StrLenField("p", "2-"))
-    fields_desc.append(StrLenField("g", "5-"))
-    fields_desc.append(StrLenField("A", "10-"))
-    fields_desc.append(StrLenField("imsi", "5021301234567894-"))
+    
+    def __init__(self, p, g, A, imsi):
+        self.p = p
+        self.g = g
+        self.A = A
+        self.imsi = imsi
+        
+class MyEncoder(JSONEncoder):
+    def default(self, obj):
+        return obj.__dict__
+
 
 #generates prime numbers
-minPrime = 0
-maxPrime = 1001
-cached_primes = [i for i in range(minPrime,maxPrime) if isPrime(i)]
-p = random.choice(cached_primes)
-g = random.randint(2, 100)
-a = random.randint(2, 100)
-A = (g**a) % p
-imsi = "5021301234567894"
-print(p)
-print(g)
-print(A)
+def dh(identity):
+    minPrime = 0
+    maxPrime = 1001
+    cached_primes = [i for i in range(minPrime,maxPrime) if isPrime(i)]
+    p = random.choice(cached_primes)
+    g = random.randint(2, 100)
+    a = random.randint(2, 100)
+    A = (g**a) % p
+    imsi = identity
 
-#[...] sends p, g, A to controller, waits for B
-pkt = Ether(dst = "ff:ff:ff:ff:ff:ff", src = "08:00:27:36:e0:ab")/IP(src="45.45.0.2", dst=controller_ip)/UDP(sport=1298, dport=100)/DH(p = str(p) + "-", g = str(g) + "-", A = str(A) + "-", imsi = "3021301234567894" + "-") #check
-pkt_dh = str(pkt.getlayer(DH)).split("-")
-print(pkt_dh)
-p = pkt_dh[0][2:] #remove 'b
-print(p)
-g = pkt_dh[1]
-print(g)
-A = pkt_dh[2]
-print(A)
-imsi = pkt_dh[3]
-print(imsi)
-#answer = sr1(pkt, iface='eth1')
-sendp(pkt, iface = 'eth1')
+    #[...] sends p, g, A to controller, waits for B
+    dh = DH(p, g, A, imsi)
+    dh = MyEncoder().encode(auth)
+    pkt = Ether(dst = controller_ether, src = "08:00:27:36:e0:ab")/IP(src = self_ip, dst = controller_ip)/UDP(sport = 1298, dport = 100)/str(dh)
+    print(p)
+    print(g)
+    print(A)
+    print(imsi)
+    sendp(pkt, iface = 'eth1')
 
-def key_computation(pkt):
-    print("Raw: ")
-    raw = str(pkt.getlayer(Raw)).split("-")
-    B = raw[1]
-    print(B)
-    keyA = hashlib.sha256(str((int(B)**int(a)) % int(p)).encode()).hexdigest()
-    print(keyA)
+    def key_computation(pkt):
+        global key
+        print("Raw: ")
+        raw = str(pkt.getlayer(Raw)).split("-")
+        B = raw[1]
+        print(B)
+        keyA = hashlib.sha256(str((int(B)**int(a)) % int(p)).encode()).hexdigest()
+        #print(keyA)
+        key = keyA
 
-#waits for B
-packet = sniff(prn = lambda x:key_computation(x), count = 1, iface='eth1', filter = 'src host 192.168.56.4 and src port 100')
+    #waits for B
+    packet = sniff(prn = lambda x:key_computation(x), count = 1, iface='eth1', filter = 'src host 192.168.56.4 and src port 100')
+    return key
 
 #--- controller ---
 #[...] receives p, g, A
