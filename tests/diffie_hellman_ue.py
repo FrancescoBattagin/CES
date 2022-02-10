@@ -21,18 +21,17 @@ def isPrime(k):
 
     return True
 
-class DH(Packet):
-    
+class DH():
+
     def __init__(self, p, g, A, imsi):
         self.p = p
         self.g = g
         self.A = A
         self.imsi = imsi
-        
+
 class MyEncoder(JSONEncoder):
     def default(self, obj):
         return obj.__dict__
-
 
 #generates prime numbers
 def dh(identity):
@@ -47,23 +46,16 @@ def dh(identity):
 
     #[...] sends p, g, A to controller, waits for B
     dh = DH(p, g, A, imsi)
-    dh = MyEncoder().encode(auth)
-    pkt = Ether(dst = controller_ether, src = "08:00:27:36:e0:ab")/IP(src = self_ip, dst = controller_ip)/UDP(sport = 1298, dport = 100)/str(dh)
-    print(p)
-    print(g)
-    print(A)
-    print(imsi)
+    dh = MyEncoder().encode(dh)
+    pkt = Ether(dst = BCAST_MAC, src = "08:00:27:36:e0:ab")/IP(src = self_ip, dst = controller_ip)/UDP(sport = 1298, dport = 100)/str(dh)
+
     sendp(pkt, iface = 'eth1')
 
     def key_computation(pkt):
         global key
-        print("Raw: ")
-        raw = str(pkt.getlayer(Raw)).split("-")
-        B = raw[1]
-        print(B)
-        keyA = hashlib.sha256(str((int(B)**int(a)) % int(p)).encode()).hexdigest()
-        #print(keyA)
-        key = keyA
+        raw = str(pkt.getlayer(Raw)).split('\\')[0][2:]
+        B = int(raw)
+        key = hashlib.sha256(str((int(B)**int(a)) % int(p)).encode()).hexdigest()
 
     #waits for B
     packet = sniff(prn = lambda x:key_computation(x), count = 1, iface='eth1', filter = 'src host 192.168.56.4 and src port 100')

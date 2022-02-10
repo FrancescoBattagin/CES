@@ -17,6 +17,10 @@ import hmac, hashlib
 # No need to import p4runtime_lib
 # import p4runtime_lib.bmv2
 
+controller_ip = '192.168.56.4'
+key_port = 100
+auth_port = 101
+
 policies_list = []
 mac_addresses = {}
 #keys = [{"imsi":"5021301234567894", "key":"6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b", "count":1}, {...}, ...]
@@ -325,7 +329,8 @@ def key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp):
     if not found:
         b = random.randint(10,20)
         B = (int(g)**int(b)) % int(p)
-        packet = Ether(dst = mac_addresses[pkt_ip.src])/IP(src = pkt_ip.dst, dst = pkt_ip.src)/UDP(sport = pkt_udp.dport, dport = pkt_udp.sport)/Raw(load = '-' + str(B) + '-')
+        print("B: " + str(B))
+        packet = Ether(dst = mac_addresses[pkt_ip.src])/IP(src = pkt_ip.dst, dst = pkt_ip.src)/UDP(sport = pkt_udp.dport, dport = pkt_udp.sport)/Raw(load = str(B))
         te = sh.TableEntry('my_ingress.forward')(action='my_ingress.ipv4_forward')
         te.match["hdr.ipv4.srcAddr"] = pkt_ip.dst
         te.match["hdr.ipv4.dstAddr"] = pkt_ip.src
@@ -404,8 +409,8 @@ def packetHandler(streamMessageResponse):
                     print("sport: " + str(pkt.getlayer(TCP).sport))
                     print("dport: " + str(pkt.getlayer(TCP).dport))
                 elif pkt_udp != None:
-                    if pkt_dst == "192.168.56.4":
-                        if pkt_udp.dport == 100:
+                    if pkt_dst == controller_ip:
+                        if pkt_udp.dport == key_port:
                             print("Key negotiation packet")
                             dh = str(pkt.getlayer(Raw))[2:-1] #remove b' and '
                             dh = json.loads(dh)
@@ -414,15 +419,17 @@ def packetHandler(streamMessageResponse):
                             A = dh['A']
                             imsi = dh['imsi']
                             key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp)
-                        elif pkt_udp.dport == 101:
+                        elif pkt_udp.dport == auth_port:
                             print("[!] Authentication packet")
                             if pkt_src in mac_addresses and pkt_dst in mac_addresses:
                                 pkt_raw = str(pkt.getlayer(Raw)).split("---")
                                 hmac_hex = pkt_raw[1][:-1] #remove '
-                                auth = pkt_raw[0][2:] #remove b'
+                                auth = pkt_raw[0][2:] #remove b"
+                                auth_bytes = base64.b64decode(auth[2:-1]) #remove b'
+                                auth_string = auth_bytes.decode('unicode_escape')
 
-                                def hmac_check(auth, hmac_hex):
-                                    auth_dict = json.loads(auth)
+                                def hmac_check(auth_string, auth_bytes, hmac_hex):
+                                    auth_dict = json.loads(auth_string)
                                     imsi = auth_dict["imsi"]
                                     count = auth_dict["count"]
                                     found = False
@@ -431,8 +438,7 @@ def packetHandler(streamMessageResponse):
                                             found = True
                                             key = dictionary["key"]
                                             dictionary["count"] = count
-                                            message_bytes = auth.encode('ascii')
-                                            base64_bytes = base64.b64encode(message_bytes)
+                                            base64_bytes = base64.b64encode(auth_bytes)
                                             hmac_hex_new = hmac.new(bytes(key, 'utf-8'), base64_bytes, hashlib.sha512).hexdigest()
                                             if hmac_hex_new == hmac_hex:
                                                 print("[!] HMAC is the same! Looking for policies...")
@@ -443,7 +449,7 @@ def packetHandler(streamMessageResponse):
                                     if not found:
                                         print("[!] User has not negotiated key yet")
 
-                                hmac_check(auth, hmac_hex)
+                                hmac_check(auth_string, auth_bytes, hmac_hex)
 
                             else:
                                 print("[!] MAC info not known, still waiting for a gratuitous ARP packet. Here are all the collected info")
