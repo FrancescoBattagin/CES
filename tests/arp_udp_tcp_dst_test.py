@@ -1,26 +1,15 @@
 from scapy.all import *
 import time
 
-SELF_MAC = '8e:25:fb:b3:13:d7'
-BCAST_MAC = 'b6:71:cd:b3:d5:f2'
+SELF_MAC = '08:00:27:fe:41:93'
+BCAST_MAC = 'ff:ff:ff:ff:ff:ff'
+controller_ether = '08:00:27:ef:14:c0'
 
-packet = Ether(dst = BCAST_MAC, src = SELF_MAC, type = 0x0806)/ARP(psrc = "10.0.0.3", hwsrc = SELF_MAC, pdst = "172.17.0.1")
-sendp(packet, iface="dst-eth0")
-
-def auth_param(param):
-        return param + "-"
-
-class Auth(Packet):
-    '''Add a '-' at the and of each field value but the last for parsing inside orchestrator'''
-    fields_desc = []
-    fields_desc.append(StrLenField("service_ip", auth_param("10.0.0.1"))) #10.0.0.1 as default
-    fields_desc.append(StrLenField("method", auth_param("imsi"))) #imsi as default
-    fields_desc.append(StrLenField("authentication", auth_param("310170845466094"))) #310170845466094 as default
-    fields_desc.append(StrLenField("port", auth_param("80"))) #80 as default
-    fields_desc.append(StrLenField("protocol", "TCP")) #TCP as default
+packet = Ether(dst = controller_ether, src = SELF_MAC, type = 0x0806)/ARP(psrc = "192.169.56.2", hwsrc = SELF_MAC, pdst = "192.168.56.2")
+sendp(packet, iface="eth1")
 
 time.sleep(5)
 
-packet = Ether(dst = BCAST_MAC, src = SELF_MAC)/IP(src="10.0.0.3", dst="10.0.0.1")/TCP(sport=80, dport=1298, flags='S', seq=10001)
+packet = Ether(dst = controller_ether, src = SELF_MAC)/IP(src="192.169.56.2", dst="192.168.56.1")/TCP(sport=80, dport=1298, flags='S', seq=10001)
 
-sendp(packet, iface="dst-eth0")
+sendp(packet, iface="eth1")

@@ -17,7 +17,7 @@ import hmac, hashlib
 # No need to import p4runtime_lib
 # import p4runtime_lib.bmv2
 
-controller_ip = '192.168.56.4'
+controller_ip = '192.168.56.2'
 key_port = 100
 auth_port = 101
 
@@ -187,7 +187,9 @@ def addOpenEntry(ip_src, ip_dst, port, ether_dst, egress_port, ether_src):
     te.action["port"] = str(egress_port)
     te.priority = 1
     te.insert()
-    print("[!] New open entry added")
+    inserted = time.time()
+    print("[!] New open entry added at")
+    print(inserted)
     open_entry_history.append({"ip_dst":ip_dst, "ip_src":ip_src, "port":str(port), "ether_src":ether_src, "te":te})
 
     def entry_timeout(ip_dst, ip_src, port, ether_src):
@@ -263,8 +265,6 @@ def getPoliciesDB(packet):
 def lookForPolicy(policyList, auth_dict, pkt_ip):
     global mac_addresses
     found = False
-    print("[!] Policies: \n")
-    print(policyList)
 
     service_ip = auth_dict["service_ip"]
     method = auth_dict["method"]
@@ -273,7 +273,7 @@ def lookForPolicy(policyList, auth_dict, pkt_ip):
     protocol = auth_dict["protocol"]
 
     ether_src = mac_addresses[pkt_ip.src]
-    ether_dst = mac_addresses[pkt_ip.dst]
+    ether_dst = mac_addresses[service_ip]
 
     for policy in policyList:
         if service_ip == policy.get("ip") and int(port) == policy.get("port") and protocol == policy.get("protocol"):
@@ -323,6 +323,9 @@ def key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp):
     global keys
     global mac_addresses
     found = False
+    begin = time.time()
+    print("begin")
+    print(begin)
     for dictionary in keys:
         if dictionary["imsi"] == imsi:
             found = True
@@ -340,6 +343,9 @@ def key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp):
         te.priority = 1
         te.insert()
         sendp(packet, iface='eth1')
+        sent = time.time()
+        print("sent")
+        print(sent)
         te.delete()
         keyB = hashlib.sha256(str((int(A)**int(b)) % int(p)).encode()).hexdigest()
         keys.append({"imsi":imsi, "key":keyB, "count":0})
@@ -350,7 +356,6 @@ def key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp):
 def packetHandler(streamMessageResponse):
     global mac_addresses
     global keys
-    print("[!] Packets received")
     packet = streamMessageResponse.packet
 
     if streamMessageResponse.WhichOneof('update') =='packet':
@@ -380,7 +385,7 @@ def packetHandler(streamMessageResponse):
         reply = False
         #check for waited replies in open_entry_history
         for dictionary in open_entry_history:
-            if pkt_src == dictionary["ip_dst"] and pkt_dst == dictionary["ip_src"]:
+            if pkt.getlayer(IP) != None and pkt_src == dictionary["ip_dst"] and pkt_dst == dictionary["ip_src"]:
                 if pkt.getlayer(TCP) != None:
                     if str(pkt.getlayer(TCP).sport) == dictionary["port"]:
                         reply = True
@@ -390,8 +395,6 @@ def packetHandler(streamMessageResponse):
                         print("[!] Open entry deleted")
                         open_entry_history.remove(dictionary)
                         #add strict entries
-                        print(pkt.getlayer(Ether).src)
-                        print(dictionary["ether_src"])
                         addEntry(pkt_src, pkt_dst, pkt.getlayer(TCP).dport, dictionary["port"], dictionary["ether_src"], 1)
                         addEntry(pkt_dst, pkt_src, dictionary["port"], pkt.getlayer(TCP).dport, ether_src, 2)
                         forward_packet(pkt)
@@ -411,7 +414,7 @@ def packetHandler(streamMessageResponse):
                 elif pkt_udp != None:
                     if pkt_dst == controller_ip:
                         if pkt_udp.dport == key_port:
-                            print("Key negotiation packet")
+                            print("[!] Key negotiation packet")
                             dh = str(pkt.getlayer(Raw))[2:-1] #remove b' and '
                             dh = json.loads(dh)
                             p = dh["p"]
@@ -439,7 +442,13 @@ def packetHandler(streamMessageResponse):
                                             key = dictionary["key"]
                                             dictionary["count"] = count
                                             base64_bytes = base64.b64encode(auth_bytes)
+                                            before = time.time()
+                                            print("before hmac")
+                                            print(before)
                                             hmac_hex_new = hmac.new(bytes(key, 'utf-8'), base64_bytes, hashlib.sha512).hexdigest()
+                                            after = time.time()
+                                            print("after hmac")
+                                            print(after)
                                             if hmac_hex_new == hmac_hex:
                                                 print("[!] HMAC is the same! Looking for policies...")
                                                 lookForPolicy(policies_list, auth_dict, pkt_ip)
@@ -496,7 +505,7 @@ def controller():
             for thread in threads:
                 thread.join()
 
-        packet_in.sniff(lambda m: handle_thread_pkt_management(m, threads), timeout = 1)
+        packet_in.sniff(lambda m: handle_thread_pkt_management(m, threads), timeout = 0.5)
 
 if __name__ == '__main__':
     controller()
