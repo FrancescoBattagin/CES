@@ -421,7 +421,9 @@ def packetHandler(streamMessageResponse):
                             g = dh['g']
                             A = dh['A']
                             imsi = dh['imsi']
-                            key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp)
+                            
+                            if dh['version'] == 1.0: #version
+                                key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp)
                         elif pkt_udp.dport == auth_port:
                             print("[!] Authentication packet")
                             if pkt_src in mac_addresses and pkt_dst in mac_addresses:

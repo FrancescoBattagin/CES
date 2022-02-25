@@ -5,10 +5,10 @@ from scapy.all import *
 import json
 from json import JSONEncoder
 
-controller_ip = '192.168.56.4'
-controller_ether = '08:00:27:36:e0:ab'
+controller_ip = '192.168.56.2'
+controller_ether = '08:00:27:4a:fc:4f'
 BCAST_MAC = "ff:ff:ff:ff:ff:ff"
-SELF_MAC = "08:00:27:13:cd:9d"
+SELF_MAC = "08:00:27:43:af:40"
 self_ip = "192.168.56.1"
 key = ''
 
@@ -23,11 +23,12 @@ def isPrime(k):
 
 class DH():
 
-    def __init__(self, p, g, A, imsi):
+    def __init__(self, p, g, A, imsi, version):
         self.p = p
         self.g = g
         self.A = A
         self.imsi = imsi
+        self.version = version
 
 class MyEncoder(JSONEncoder):
     def default(self, obj):
@@ -47,7 +48,7 @@ def dh(identity):
     #[...] sends p, g, A to controller, waits for B
     dh = DH(p, g, A, imsi)
     dh = MyEncoder().encode(dh)
-    pkt = Ether(dst = BCAST_MAC, src = "08:00:27:36:e0:ab")/IP(src = self_ip, dst = controller_ip)/UDP(sport = 1298, dport = 100)/str(dh)
+    pkt = Ether(dst = controller_ether, src = SELF_MAC)/IP(src = self_ip, dst = controller_ip)/UDP(sport = 1298, dport = 100)/str(dh)
 
     sendp(pkt, iface = 'eth1')
 
