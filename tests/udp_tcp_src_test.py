@@ -1,15 +1,10 @@
 from scapy.all import *
 import time
-import requests
-from diffie_hellman_ue import dh
-import json
-from json import JSONEncoder
-import hmac, hashlib, base64
 
 controller_ip = '192.168.56.2'
 controller_ether = '08:00:27:4a:fc:4f'
 SELF_MAC = "08:00:27:43:af:40"
-self_ip = "192.168.56.1"
+self_ip = "45.45.0.2"
 iface = 'oaitun_ue1'
 auth_port = 101
 
@@ -40,7 +35,7 @@ msg = str(base64_bytes) + '---' + str(hmac_hex)
 packet = IP(dst=controller_ip, src=self_ip)/UDP(sport=1298, dport=auth_port)/msg
 
 sendp(packet, iface=iface)
-
+print(time.time())
 time.sleep(3)
 
 packet = IP(dst=controller_ip, src=self_ip)/TCP(dport=80, sport=1298)

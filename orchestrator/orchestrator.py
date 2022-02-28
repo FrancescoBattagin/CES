@@ -314,6 +314,9 @@ def arpManagement(packet):
 #send reply to src
 def forward_packet(packet):
     ether = packet.getlayer(Ether)
+    print(ether.src)
+    print("->")
+    print(ether.dst)
     ip = packet.getlayer(IP)
     tcp = packet.getlayer(TCP)
     packet_out = ether/ip/tcp
@@ -335,7 +338,7 @@ def key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp):
         b = random.randint(10,20)
         B = (int(g)**int(b)) % int(p)
         print("B: " + str(B))
-        packet = Ether(dst = mac_addresses[pkt_ip.src])/IP(src = pkt_ip.dst, dst = pkt_ip.src)/UDP(sport = pkt_udp.dport, dport = pkt_udp.sport)/Raw(load = str(B))
+        packet = Ether(src=pkt_ether.dst, dst = pkt_ether.src)/IP(src = pkt_ip.dst, dst = pkt_ip.src)/UDP(sport = pkt_udp.dport, dport = pkt_udp.sport)/Raw(load = str(B))
         te = sh.TableEntry('my_ingress.forward')(action='my_ingress.ipv4_forward')
         te.match["hdr.ipv4.srcAddr"] = pkt_ip.dst
         te.match["hdr.ipv4.dstAddr"] = pkt_ip.src
@@ -423,7 +426,7 @@ def packetHandler(streamMessageResponse):
                             g = dh['g']
                             A = dh['A']
                             imsi = dh['imsi']
-                            
+
                             if dh['version'] == 1.0: #version
                                 key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp)
                         elif pkt_udp.dport == auth_port:

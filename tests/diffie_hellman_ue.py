@@ -7,7 +7,7 @@ from json import JSONEncoder
 
 controller_ip = '192.168.56.2'
 SELF_MAC = "08:00:27:43:af:40"
-self_ip = "192.168.56.1"
+self_ip = "45.45.0.2"
 key = ''
 key_port = 100
 iface = "oaitun_ue1"
@@ -46,7 +46,7 @@ def dh(identity):
     imsi = identity
 
     #[...] sends p, g, A to controller, waits for B
-    dh = DH(p, g, A, imsi)
+    dh = DH(p, g, A, imsi, 1.0)
     dh = MyEncoder().encode(dh)
     pkt = IP(src = self_ip, dst = controller_ip)/UDP(sport = 1298, dport = key_port)/str(dh)
 
