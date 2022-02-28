@@ -6,11 +6,11 @@ import json
 from json import JSONEncoder
 
 controller_ip = '192.168.56.2'
-controller_ether = '08:00:27:4a:fc:4f'
-BCAST_MAC = "ff:ff:ff:ff:ff:ff"
 SELF_MAC = "08:00:27:43:af:40"
 self_ip = "192.168.56.1"
 key = ''
+key_port = 100
+iface = "oaitun_ue1"
 
 def isPrime(k):
     if k==2 or k==3: return True
@@ -48,9 +48,9 @@ def dh(identity):
     #[...] sends p, g, A to controller, waits for B
     dh = DH(p, g, A, imsi)
     dh = MyEncoder().encode(dh)
-    pkt = Ether(dst = controller_ether, src = SELF_MAC)/IP(src = self_ip, dst = controller_ip)/UDP(sport = 1298, dport = 100)/str(dh)
+    pkt = IP(src = self_ip, dst = controller_ip)/UDP(sport = 1298, dport = key_port)/str(dh)
 
-    sendp(pkt, iface = 'eth1')
+    sendp(pkt, iface = iface)
 
     def key_computation(pkt):
         global key
@@ -59,7 +59,7 @@ def dh(identity):
         key = hashlib.sha256(str((int(B)**int(a)) % int(p)).encode()).hexdigest()
 
     #waits for B
-    packet = sniff(prn = lambda x:key_computation(x), count = 1, iface='eth1', filter = 'src host 192.168.56.4 and src port 100')
+    packet = sniff(prn = lambda x:key_computation(x), count = 1, iface=iface, filter = 'src host 192.168.56.2 and src port 100')
     return key
 
 #--- controller ---

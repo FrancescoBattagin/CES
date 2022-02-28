@@ -20,6 +20,7 @@ import hmac, hashlib
 controller_ip = '192.168.56.2'
 key_port = 100
 auth_port = 101
+mac_to_be_filtered = '0a:00:27:00:00:20' #virtualbox mac to be filtered
 
 policies_list = []
 mac_addresses = {}
@@ -303,11 +304,12 @@ def lookForPolicy(policyList, auth_dict, pkt_ip):
 def arpManagement(packet):
     global mac_addresses
     mac = packet.getlayer(Ether).src
-    ip = packet.getlayer(ARP).psrc
-    print(ip + " has MAC " + mac)
-    if ip not in mac_addresses:
-        mac_addresses[ip] = mac
-    print(mac_addresses)
+    if mac != mac_to_be_filtered:
+        ip = packet.getlayer(ARP).psrc
+        print(ip + " has MAC " + mac)
+        if ip not in mac_addresses:
+            mac_addresses[ip] = mac
+        print(mac_addresses)
 
 #send reply to src
 def forward_packet(packet):

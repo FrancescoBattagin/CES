@@ -8,16 +8,10 @@ import hmac, hashlib, base64
 
 controller_ip = '192.168.56.2'
 controller_ether = '08:00:27:4a:fc:4f'
-BCAST_MAC = "ff:ff:ff:ff:ff:ff"
 SELF_MAC = "08:00:27:43:af:40"
 self_ip = "192.168.56.1"
-container_ip = "192.187.3.6"
-container_ether = "02:42:c0:bb:03:06"
-
-packet = Ether(dst = controller_ether, src = SELF_MAC, type = 0x0806)/ARP(psrc = self_ip, hwsrc = SELF_MAC, pdst = controller_ip)
-sendp(packet, iface="eth1")
-
-time.sleep(2)
+iface = 'oaitun_ue1'
+auth_port = 101
 
 class Auth():
 
@@ -43,11 +37,11 @@ base64_bytes = base64.b64encode(message_bytes)
 hmac_hex = hmac.new(bytes(key, 'utf-8'), base64_bytes, hashlib.sha512).hexdigest()
 msg = str(base64_bytes) + '---' + str(hmac_hex)
 
-packet = Ether(dst = controller_ether, src = SELF_MAC)/IP(dst="192.168.56.2", src=self_ip)/UDP(sport=1298, dport=101)/msg
+packet = IP(dst=controller_ip, src=self_ip)/UDP(sport=1298, dport=auth_port)/msg
 
-sendp(packet, iface="eth1")
+sendp(packet, iface=iface)
 
-time.sleep(2)
+time.sleep(3)
 
-packet = Ether(dst = controller_ether, src = SELF_MAC)/IP(dst="192.169.56.2", src="192.168.56.1")/TCP(dport=80, sport=1298)
-sendp(packet, iface="eth1")
+packet = IP(dst=controller_ip, src=self_ip)/TCP(dport=80, sport=1298)
+sendp(packet, iface=iface)
