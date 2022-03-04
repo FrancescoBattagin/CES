@@ -6,7 +6,6 @@ import json
 from json import JSONEncoder
 
 controller_ip = '192.168.56.2'
-SELF_MAC = "08:00:27:43:af:40"
 self_ip = "45.45.0.2"
 key = ''
 key_port = 100

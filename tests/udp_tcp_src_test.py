@@ -1,9 +1,11 @@
 from scapy.all import *
 import time
+from diffie_hellman_ue import dh
+import json
+from json import JSONEncoder
+import hmac, hashlib, base64
 
 controller_ip = '192.168.56.2'
-controller_ether = '08:00:27:4a:fc:4f'
-SELF_MAC = "08:00:27:43:af:40"
 self_ip = "45.45.0.2"
 iface = 'oaitun_ue1'
 auth_port = 101
