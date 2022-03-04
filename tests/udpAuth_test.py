@@ -54,7 +54,7 @@ def packetHandler(packets):
 #print(test_pkt_ip.dst)
 #print(test_pkt_tag.imsi) #ok -> imsi set inside mytag layer
 
-#print("\n\n\n\n\n\nnow test /w a packet")
+#print("\n\n\n\n\n\nnow test w/ a packet")
 
 packet = IP(ttl = 100, dst = '10.0.2.15')/UDP(dport=53)/Auth(service_ip = "10.0.0.2", method = "imsi", authentication = "5021301234567894", port = 25, protocol = "UDP")
 #packet = IP(ttl = 100, dst = '10.0.2.15')/UDP(dport=54)/Auth(service_ip = "10.0.0.3", method = "ip", authentication = "10.0.0.250", port = 26, protocol = "TCP")

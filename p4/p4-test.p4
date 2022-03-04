@@ -147,7 +147,6 @@ control my_ingress(inout headers_t hdr,
     action ipv4_forward(EthernetAddress dstAddr, egressSpec_t port) { 
         standard_metadata.egress_spec = port;
         ethernet_forward(dstAddr);
-        hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
 
     action send_to_controller(){

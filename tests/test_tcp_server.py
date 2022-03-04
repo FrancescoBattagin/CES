@@ -1,7 +1,7 @@
 import socket
 import sys
 
-HOST = "192.169.56.2"
+HOST = "0.0.0.0"
 PORT = 80  # Port to listen on (non-privileged ports are > 1023)
 
 socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
