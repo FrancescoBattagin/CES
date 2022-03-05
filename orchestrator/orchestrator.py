@@ -196,7 +196,7 @@ def addOpenEntry(ip_src, ip_dst, port, ether_dst, egress_port, ether_src):
     def entry_timeout(ip_dst, ip_src, port, ether_src):
         global open_entry_history
         print("[!] Countdown started")
-        timeout = time.time() + 5.0 #5 sec or more
+        timeout = time.time() + 25.0 #25 sec or more
         while True:
             entry = {}
             found = False
@@ -311,18 +311,6 @@ def arpManagement(packet):
             mac_addresses[ip] = mac
         print(mac_addresses)
 
-#send reply to src
-def forward_packet(packet):
-    ether = packet.getlayer(Ether)
-    print(ether.src)
-    print("->")
-    print(ether.dst)
-    ip = packet.getlayer(IP)
-    tcp = packet.getlayer(TCP)
-    packet_out = ether/ip/tcp
-    sendp(packet_out, iface='eth1')
-    print("[!] Reply forwarded")
-
 #diffie-hellman key computation
 def key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp):
     global keys
@@ -402,7 +390,6 @@ def packetHandler(streamMessageResponse):
                         #add strict entries
                         addEntry(pkt_src, pkt_dst, pkt.getlayer(TCP).dport, dictionary["port"], dictionary["ether_src"], 1)
                         addEntry(pkt_dst, pkt_src, dictionary["port"], pkt.getlayer(TCP).dport, ether_src, 2)
-                        forward_packet(pkt)
 
         if not reply:
             if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":

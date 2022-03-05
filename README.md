@@ -99,19 +99,19 @@ sudo docker exec -it ue bash
 Send another gratuitous ARP to controller from dst vm:
 ```
 vagrant ssh helium
-cd CES/tests/ && sudo python3 arp_tcp_dst_test.py
+cd CES/tests/ && sudo python3 arp_dst_test.py
 ```
 
-Immediately, inside UE container run:
+Inside UE container run:
 ```
 sudo python3 udp_tcp_src_test.py
 ```
 
-This two scripts simulate the authentication and authorization process between the controller and the UE, who wants to have access to a specific service (whose entrypoint is the IP address of dst vm, and dport is 80).
+This scripts simulates the authentication (a key-exchange through Diffie-Hellman) and authorization process (an authorization packet) between the controller and the UE, who wants to have access to a specific service (whose entrypoint is the IP address of dst vm, and dport is 80).
 
 An "open" entry (which doesn't care about TCP source port) will be installed on the BMV2 switch and, when a "reply" packet from dst will be received, the "open" entry will be substituted by two "strict" entries (traffic is now legitimated from ue to dst and viceversa).
 
-To check if everything is ok, it is possible to run netcat on both vms, as follows:
+To check if everything is ok and to install the "strict" entries (before controller timeout), it is possible to run netcat on both vms, as follows:
 * Inside dst vm run:
 	```
 	sudo nc -l 0.0.0.0 80
@@ -128,7 +128,7 @@ The same will happen if a message is sent from the server.
 UE container is unstable. Sometimes UEs' interfaces lose connectivity or they disappear at all.
 Just rerun ansible playbook script inside hydrogen vm.
 ```
-ansible-playbook -K Demo2Exp1.yml  -e  "internet_network_interface=<< internet network interface name>>"
+sudo ansible-playbook -K Demo2Exp1.yml  -e  "internet_network_interface=<< internet network interface name>>"
 ```
 
 

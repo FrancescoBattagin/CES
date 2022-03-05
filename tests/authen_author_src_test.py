@@ -37,8 +37,9 @@ msg = str(base64_bytes) + '---' + str(hmac_hex)
 packet = IP(dst=controller_ip, src=self_ip)/UDP(sport=1298, dport=auth_port)/msg
 
 sendp(packet, iface=iface)
-print(time.time())
-time.sleep(3)
 
-packet = IP(dst=controller_ip, src=self_ip)/TCP(dport=80, sport=1298)
-sendp(packet, iface=iface)
+#test packet
+#print(time.time())
+#time.sleep(3)
+#packet = IP(dst=controller_ip, src=self_ip)/TCP(dport=80, sport=1298)
+#sendp(packet, iface=iface)
