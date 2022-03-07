@@ -431,32 +431,29 @@ def packetHandler(streamMessageResponse):
                                     count = auth_dict["count"]
                                     found = False
                                     for dictionary in keys:
-                                        if dictionary["imsi"] == imsi and dictionary["count"] < count:
-                                            found = True
-                                            key = dictionary["key"]
-                                            dictionary["count"] = count
-                                            base64_bytes = base64.b64encode(auth_bytes)
-                                            before = time.time()
-                                            print("before hmac")
-                                            print(before)
-                                            hmac_hex_new = hmac.new(bytes(key, 'utf-8'), base64_bytes, hashlib.sha512).hexdigest()
-                                            after = time.time()
-                                            print("after hmac")
-                                            print(after)
-                                            if hmac_hex_new == hmac_hex:
-                                                print("[!] HMAC is the same! Looking for policies...")
-                                                lookForPolicy(policies_list, auth_dict, pkt_ip)
-                                            else:
-                                                print("[!] HMAC is different. R u a thief?")
-                                            break
-                                    if not found:
-                                        print("[!] User has not negotiated key yet")
-
+                                    service_ip = auth_dict["service_ip"]
+                                    if service_ip in mac_addresses:
+                                        found = False
+                                        for dictionary in keys:
+                                            if dictionary["imsi"] == imsi and dictionary["count"] < count:
+                                                found = True
+                                                key = dictionary["key"]
+                                                dictionary["count"] = count
+                                                base64_bytes = base64.b64encode(auth_bytes)
+                                                hmac_hex_new = hmac.new(bytes(key, 'utf-8'), base64_bytes, hashlib.sha512).hexdigest()
+                                                if hmac_hex_new == hmac_hex:
+                                                    print("[!] HMAC is the same! Looking for policies...")
+                                                    lookForPolicy(policies_list, auth_dict, pkt_ip)
+                                                else:
+                                                    print("[!] HMAC is different. R u a thief?")
+                                                break
+                                        if not found:
+                                            print("[!] User has not negotiated key yet")
+                                    else:
+                                        print("[!] service MAC is not known; still waiting for a gratuitous ARP")
                                 hmac_check(auth_string, auth_bytes, hmac_hex)
-
                             else:
-                                print("[!] MAC info not known, still waiting for a gratuitous ARP packet. Here are all the collected info")
-                                print(mac_addresses)
+                                print("[!] MAC info not known, still waiting for a gratuitous ARP")
             else:
                 print("[!] No needed layers")
 
