@@ -429,8 +429,6 @@ def packetHandler(streamMessageResponse):
                                     auth_dict = json.loads(auth_string)
                                     imsi = auth_dict["imsi"]
                                     count = auth_dict["count"]
-                                    found = False
-                                    for dictionary in keys:
                                     service_ip = auth_dict["service_ip"]
                                     if service_ip in mac_addresses:
                                         found = False
