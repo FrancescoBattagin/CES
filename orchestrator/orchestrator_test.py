@@ -232,7 +232,9 @@ def addEntry(ip_src, ip_dst, dport, sport, ether_dst, egress_port):
     te.priority = 1
     te.insert()
     print("[!] New entry added")
-    strict_entry_history.append({"ip_dst":ip_dst, "ip_src":ip_src, "dport":str(dport), "sport":str(sport), "dstAddr":ether_dst, "egress_port":egress_port, "te":te})
+    #strict_entry_history.append({"ip_dst":ip_dst, "ip_src":ip_src, "dport":str(dport), "sport":str(sport), "dstAddr":ether_dst, "egress_port":egress_port, "te":te})
+    time.sleep(0.005)
+    te.delete()
 
 #update policies_list
 def getPolicies():
@@ -283,6 +285,7 @@ def lookForPolicy(policyList, auth_dict, pkt_ip):
                     if user.get("method") == "ip" and user.get("user") == authentication:
                         found = True
                         addOpenEntry(authentication, service_ip, port, ether_dst, 2, ether_src) #substitute specific egress_port; 2 in my case
+                        print("ADDED OPEN ENTRY AT " + str(time.time()))
                         break
                 else: #imsi or token
                     stream = open("../orchestrator/ip_map.yaml", 'r')
@@ -292,7 +295,6 @@ def lookForPolicy(policyList, auth_dict, pkt_ip):
                             for ue in service.get("allowed_users"):
                                 if user.get("method") == ue.get("method") and ue.get("method") == method and user.get("user") == ue.get("user") and ue.get("user") == authentication: #same method and same id (imsi or token)
                                     found = True
-                                    print("[!] Retrieved ip: " + ue.get("actual_ip"))
                                     addOpenEntry(ue.get("actual_ip"), policy.get("ip"), policy.get("port"), ether_dst, 2, ether_src)
                                     print("ADDED OPEN ENTRY AT " + str(time.time()))
                                     break
@@ -326,7 +328,6 @@ def key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp):
     if not found:
         b = random.randint(10,20)
         B = (int(g)**int(b)) % int(p)
-        print("B: " + str(B))
         packet = Ether(src=pkt_ether.dst, dst = pkt_ether.src)/IP(src = pkt_ip.dst, dst = pkt_ip.src)/UDP(sport = pkt_udp.dport, dport = pkt_udp.sport)/Raw(load = str(B))
         te = sh.TableEntry('my_ingress.forward')(action='my_ingress.ipv4_forward')
         te.match["hdr.ipv4.srcAddr"] = pkt_ip.dst
@@ -413,7 +414,6 @@ def packetHandler(streamMessageResponse):
                             g = dh['g']
                             A = dh['A']
                             imsi = dh['imsi']
-
                             if dh['version'] == 1.0: #version
                                 key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp)
                         elif pkt_udp.dport == auth_port:
@@ -441,6 +441,7 @@ def packetHandler(streamMessageResponse):
                                                 hmac_hex_new = hmac.new(bytes(key, 'utf-8'), base64_bytes, hashlib.sha512).hexdigest()
                                                 if hmac_hex_new == hmac_hex:
                                                     print("[!] HMAC is the same! Looking for policies...")
+                                                    keys.remove(dictionary)
                                                     lookForPolicy(policies_list, auth_dict, pkt_ip)
                                                 else:
                                                     print("[!] HMAC is different. R u a thief?")
