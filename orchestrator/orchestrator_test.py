@@ -233,8 +233,12 @@ def addEntry(ip_src, ip_dst, dport, sport, ether_dst, egress_port):
     te.insert()
     print("[!] New entry added")
     #strict_entry_history.append({"ip_dst":ip_dst, "ip_src":ip_src, "dport":str(dport), "sport":str(sport), "dstAddr":ether_dst, "egress_port":egress_port, "te":te})
-    time.sleep(0.005)
-    te.delete()
+
+    def entry_deletion(te):
+           time.sleep(2)
+           te.delete()
+
+    threading.Thread(target = entry_deletion, args = (te,)).start()
 
 #update policies_list
 def getPolicies():
@@ -339,7 +343,12 @@ def key_computation(p, g, A, imsi, pkt_ether, pkt_ip, pkt_udp):
         te.insert()
         sendp(packet, iface='eth1')
         print("DIFFIE_HELLMANN REPLY AT " + str(time.time()))
-        te.delete()
+
+        def key_entry_deletion(te):
+           time.sleep(3.5)
+           te.delete()
+
+        threading.Thread(target = key_entry_deletion, args = (te,)).start()
         keyB = hashlib.sha256(str((int(A)**int(b)) % int(p)).encode()).hexdigest()
         keys.append({"imsi":imsi, "key":keyB, "count":0})
     else:
