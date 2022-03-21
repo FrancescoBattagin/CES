@@ -49,9 +49,7 @@ ping 8.8.8.8 -I oaitun_ue1
 
 Install p4runtime-shell, inotify and scapy modules inside BMV2 vm:
 ```
-sudo pip3 install p4runtime-shell 
-sudo pip3 install inotify
-sudo pip3 install scapy
+sudo pip3 install p4runtime-shell && sudo pip3 install inotify && sudo pip3 install scapy
 ```
 
 Install pip3 and scapy module inside dst vm:
