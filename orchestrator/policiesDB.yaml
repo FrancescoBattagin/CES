@@ -3,13 +3,13 @@
 #policies:
 -
  serviceName: "serviceName" #application name
- ip: '10.0.0.3' #service IP
+ ip: '192.169.56.2' #service IP
  port: 80 #service port
  protocol: TCP #protocol
  allowed_users: 
  -
   method: 'ip' #other auth method: IMSI, SPA, ...
-  user: '10.0.0.2'
+  user: '192.168.56.1'
  -
   method: 'token'
   user: 'abcdefghilmnopqrstuvz'

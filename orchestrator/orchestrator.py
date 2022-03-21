@@ -18,8 +18,8 @@ import socket
 # import p4runtime_lib.bmv2
 
 controller_ip = '192.168.56.2'
-key_port = 905
-auth_port = 984
+key_port = 100
+auth_port = 101
 mac_to_be_filtered = '0a:00:27:00:00:20' #virtualbox mac to be filtered
 
 policies_list = []

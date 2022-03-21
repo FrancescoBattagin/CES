@@ -4,11 +4,23 @@ from diffie_hellman_ue import dh
 import json
 from json import JSONEncoder
 import hmac, hashlib, base64
+from send_file import send
 
 controller_ip = '192.168.56.2'
 self_ip = "45.45.0.2"
 iface = 'oaitun_ue1'
 auth_port = 101
+
+def netcat(hostname, port, content, flag):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    if flag:
+        s.bind(("45.45.0.2", auth_port))
+    s.connect((hostname, port))
+    if flag:
+        s.send(content)
+        s.close()
+    else:
+        send(s)
 
 class Auth():
 
@@ -34,12 +46,6 @@ base64_bytes = base64.b64encode(message_bytes)
 hmac_hex = hmac.new(bytes(key, 'utf-8'), base64_bytes, hashlib.sha512).hexdigest()
 msg = str(base64_bytes) + '---' + str(hmac_hex)
 
-packet = IP(dst=controller_ip, src=self_ip)/UDP(sport=1298, dport=auth_port)/msg
-
-sendp(packet, iface=iface)
-
-#test packet
-#print(time.time())
-#time.sleep(3)
-#packet = IP(dst=controller_ip, src=self_ip)/TCP(dport=80, sport=1298)
-#sendp(packet, iface=iface)
+netcat("192.168.56.2", auth_port, bytes(msg, 'utf-8'), True)
+time.sleep(0.1)
+netcat("192.169.56.2", 80, b"", False)
