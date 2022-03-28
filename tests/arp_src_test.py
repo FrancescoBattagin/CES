@@ -13,5 +13,4 @@ self_ip = "192.168.56.1"
 iface = "oaitun_ue1"
 
 packet = Ether(dst = BCAST_MAC, src = SELF_MAC, type = 0x0806)/ARP(psrc = self_ip, hwsrc = SELF_MAC, pdst = controller_ip)
-
 sendp(packet, iface=iface)
