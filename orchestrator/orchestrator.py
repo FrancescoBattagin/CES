@@ -201,7 +201,8 @@ def addOpenEntry(ip_src, ip_dst, port, ether_dst, egress_port, ether_src):
             entry = {}
             found = False
             for dictionary in open_entry_history:
-                if dictionary["ip_dst"] == ip_dst and dictionary["ip_src"] == ip_src and dictionary["port"] == str(port) and dictionary["ether_src"] == ether_src:                    entry = dictionary
+                if dictionary["ip_dst"] == ip_dst and dictionary["ip_src"] == ip_src and dictionary["port"] == str(port) and dictionary["ether_src"] == ether_src:
+                    entry = dictionary
                     found = True
 
             #open entry has been deleted
@@ -372,8 +373,8 @@ def packetHandler(streamMessageResponse):
                         reply = True
                         print("[!] Reply arrived")
                         #add strict entries
-                        addEntry(pkt_dst, pkt_src, dictionary["port"], pkt.getlayer(TCP).dport, ether_src, 2)
                         addEntry(pkt_src, pkt_dst, pkt.getlayer(TCP).dport, dictionary["port"], dictionary["ether_src"], 1)
+                        addEntry(pkt_dst, pkt_src, dictionary["port"], pkt.getlayer(TCP).dport, ether_src, 2)
                         print("ADDED STRICT ENTRIES AT " + str(time.time()))
                         #delete open entry
                         dictionary["te"].delete()
@@ -423,10 +424,10 @@ def controller():
     #thread that listens for auth connection
     def auth_thread():
         global auth_port
-        host = "192.168.56.2"
+        host = "0.0.0.0"
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.bind((host, auth_port))
-        s.listen(2)
+        s.listen()
         while True:
             connection_auth, client_address_auth = s.accept()
             with connection_auth:
@@ -474,7 +475,7 @@ def controller():
         host = "0.0.0.0"
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.bind((host, key_port))
-        s.listen(2)
+        s.listen()
         while True:
             connection, client_address = s.accept()
             with connection:
