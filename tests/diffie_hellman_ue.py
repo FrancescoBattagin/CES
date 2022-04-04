@@ -24,7 +24,6 @@ def isPrime(k):
 
 def netcat(hostname, port, content, a, p):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    print("DH AT: " + str(time.time()))
     s.bind(("45.45.0.2", source_port))
     s.connect((hostname, port))
     s.send(content)

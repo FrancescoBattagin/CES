@@ -101,22 +101,22 @@ def mod_manager():
                                             delUE(user.get("actual_ip"), policy.get("ip"))
 
                 if policy.get("tee") != policy_tmp.get("tee"):
-                    print("[!] TEE_MODIFICATIONS")
+                    print("[!] TEE_MODIFICATIONS\n")
 
                 if policy.get("fs_encr") != policy_tmp.get("fs_encr"):
-                    print("[!] FS_ENCR_MODIFICATIONS")
+                    print("[!] FS_ENCR_MODIFICATIONS\n")
 
                 if policy.get("net_encr") != policy_tmp.get("net_encr"):
-                    print("[!] NET_ENCR_MODIFICATIONS")
+                    print("[!] NET_ENCR_MODIFICATIONS\n")
 
                 if policy.get("sec_boot") != policy_tmp.get("sec_boot"):
-                    print("[!] SEC_BOOT_MODIFICATIONS")
+                    print("[!] SEC_BOOT_MODIFICATIONS\n")
 
                 break
 
         if not found:
             print("[!] Service not found")
-            print("[!] Deleting service policies...")
+            print("[!] Deleting service policies...\n")
             delPolicies(policy_tmp.get("ip"))
 
     print("[!] New policies_list: ")
@@ -136,13 +136,13 @@ def editIPPolicies(old_ip, new_ip, port):
     for dictionary in strict_entry_history:
         if dictionary["ip_dst"] == old_ip:
             dictionary["te"].delete()
-            print("[!] Previous entry deleted")
+            print("[!] Previous entry deleted\n")
             addEntry(dictionary["ip_src"], new_ip, dictionary["dport"], dictionary["sport"], dictionary["dstAddr"], dictionary["egress_port"])
             strict_entry_history.remove(dictionary)
 
         if dictionary["ip_src"] == old_ip:
             dictionary["te"].delete()
-            print("[!] Previous entry deleted")
+            print("[!] Previous entry deleted\n")
             addEntry(new_ip, dictionary["ip_dst"], dictionary["dport"], dictionary["sport"], dictionary["dstAddr"], dictionary["egress_port"])
             strict_entry_history.remove(dictionary)
 
@@ -153,13 +153,13 @@ def editPortPolicies(ip, new_port):
         if dictionary["ip_dst"] == ip:
             print(dictionary)
             dictionary["te"].delete()
-            print("[!] Previous entry deleted")
+            print("[!] Previous entry deleted\n")
             addEntry(dictionary["ip_src"], ip, new_port, dictionary["sport"], dictionary["dstAddr"], dictionary["egress_port"])
             strict_entry_history.remove(dictionary)
 
         if dictionary["ip_src"] == ip:
             dictionary["te"].delete()
-            print("[!] Previous entry deleted")
+            print("[!] Previous entry deleted\n")
             addEntry(ip, dictionary["ip_dst"], dictionary["dport"], new_port, dictionary["dstAddr"], dictionary["egress_port"])
             strict_entry_history.remove(dictionary)
 
@@ -169,12 +169,12 @@ def delUE(ue_ip, service_ip):
     for dictionary in strict_entry_history:
         if dictionary["ip_src"] == ue_ip and dictionary["ip_dst"] == service_ip:
             dictionary["te"].delete()
-            print("[!] Previous entry deleted")
+            print("[!] Previous entry deleted\n")
             strict_entry_history.remove(dictionary)
 
         if dictionary["ip_src"] == service_ip and dictionary["ip_dst"] == ue_ip:
             dictionary["te"].delete()
-            print("[!] Previous entry deleted")
+            print("[!] Previous entry deleted\n")
             strict_entry_history.remove(dictionary)
 
 #add a new tmp "open" entry
@@ -189,13 +189,12 @@ def addOpenEntry(ip_src, ip_dst, port, ether_dst, egress_port, ether_src):
     te.priority = 1
     te.insert()
     inserted = time.time()
-    print("[!] New open entry added at")
-    print(inserted)
+    print("[!] New open entry added\n")
     open_entry_history.append({"ip_dst":ip_dst, "ip_src":ip_src, "port":str(port), "ether_src":ether_src, "te":te})
 
     def entry_timeout(ip_dst, ip_src, port, ether_src):
         global open_entry_history
-        print("[!] Countdown started")
+        print("[!] Countdown started\n")
         timeout = time.time() + 25.0 #25 sec or more
         while True:
             entry = {}
@@ -207,14 +206,14 @@ def addOpenEntry(ip_src, ip_dst, port, ether_dst, egress_port, ether_src):
 
             #open entry has been deleted
             if not found:
-                print("[!] Open entry has been deleted")
+                print("[!] Open entry has been deleted\n")
                 break
 
             if timeout - time.time() <= 0.0:
                 #delete open entry
                 entry["te"].delete()
                 open_entry_history.remove(entry)
-                print("[!] Open entry deleted, timeout")
+                print("[!] Open entry deleted, timeout\n")
                 break
         return
 
@@ -231,7 +230,7 @@ def addEntry(ip_src, ip_dst, dport, sport, ether_dst, egress_port):
     te.action["port"] = str(egress_port)
     te.priority = 1
     te.insert()
-    print("[!] New entry added")
+    print("[!] New entry added\n")
     strict_entry_history.append({"ip_dst":ip_dst, "ip_src":ip_src, "dport":str(dport), "sport":str(sport), "dstAddr":ether_dst, "egress_port":egress_port, "te":te})
 
 #update policies_list
@@ -294,7 +293,6 @@ def lookForPolicy(policyList, auth_dict, client_ip):
                                     found = True
                                     print("[!] Retrieved ip: " + ue.get("actual_ip"))
                                     addOpenEntry(ue.get("actual_ip"), policy.get("ip"), policy.get("port"), ether_dst, 2, ether_src)
-                                    print("ADDED OPEN ENTRY AT " + str(time.time()))
                                     break
     if not found:
         #packet drop
@@ -307,7 +305,7 @@ def arpManagement(packet):
     mac = packet.getlayer(Ether).src
     if mac != mac_to_be_filtered:
         ip = packet.getlayer(ARP).psrc
-        print(ip + " has MAC " + mac)
+        print(ip + " has MAC " + mac + "\n")
         if ip not in mac_addresses:
             mac_addresses[ip] = mac
         print(mac_addresses)
@@ -328,11 +326,10 @@ def key_computation(p, g, A, imsi):
         B = (int(g)**int(b)) % int(p)
         print("B: " + str(B))
         keyB = hashlib.sha256(str((int(A)**int(b)) % int(p)).encode()).hexdigest()
-        print(keyB)
         keys.append({"imsi":imsi, "key":keyB, "count":0})
         return B
     else:
-        print("[!] This imsi has already a private key")
+        print("[!] This imsi has already a private key\n")
 
 #handle a just received packet
 def packetHandler(streamMessageResponse):
@@ -371,30 +368,29 @@ def packetHandler(streamMessageResponse):
                 if pkt.getlayer(TCP) != None:
                     if str(pkt.getlayer(TCP).sport) == dictionary["port"]:
                         reply = True
-                        print("[!] Reply arrived")
+                        print("[!] Reply arrived\n")
                         #add strict entries
                         addEntry(pkt_src, pkt_dst, pkt.getlayer(TCP).dport, dictionary["port"], dictionary["ether_src"], 1)
                         addEntry(pkt_dst, pkt_src, dictionary["port"], pkt.getlayer(TCP).dport, ether_src, 2)
-                        print("ADDED STRICT ENTRIES AT " + str(time.time()))
                         #delete open entry
                         dictionary["te"].delete()
-                        print("[!] Open entry deleted")
+                        print("[!] Open entry deleted\n")
                         open_entry_history.remove(dictionary)
 
         if not reply:
             if pkt_icmp != None and pkt_ip != None and str(pkt_icmp.getlayer(ICMP).type) == "8":
                 print("[!] Ping from: " + pkt_src)
-                print("[!] ICMP layer not supported in p4 switch, not used")
+                print("[!] ICMP layer not supported in p4 switch, not used\n")
             elif pkt_arp != None:
-                print("[!] ARP info")
+                print("[!] ARP info\n")
                 arpManagement(pkt)
             elif pkt_ip != None:
-                print("[!] Packet received: " + pkt_src + " --> " + pkt_dst)
+                print("[!] Packet received: " + pkt_src + " --> " + pkt_dst + "\n")
                 if pkt.getlayer(TCP) != None:
                     print("sport: " + str(pkt.getlayer(TCP).sport))
-                    print("dport: " + str(pkt.getlayer(TCP).dport))
+                    print("dport: " + str(pkt.getlayer(TCP).dport) + "\n")
             else:
-                print("[!] No needed layers")
+                print("[!] No needed layers\n")
 
 #setup connection w/ switch, sets policies_list, starts mod_detector thread and listens for new packets
 def controller():
@@ -417,7 +413,7 @@ def controller():
     getPolicies()
 
     #thread that checks for policies modifications
-    print("[!] Policies modifications detector started")
+    print("[!] Policies modifications detector started\n")
     detector = threading.Thread(target = mod_detector)
     detector.start()
 
@@ -457,15 +453,15 @@ def controller():
                                     base64_bytes = base64.b64encode(auth_bytes)
                                     hmac_hex_new = hmac.new(bytes(key, 'utf-8'), base64_bytes, hashlib.sha512).hexdigest()
                                     if hmac_hex_new == hmac_hex:
-                                        print("[!] HMAC is the same! Looking for policies...")
+                                        print("[!] HMAC is the same! Looking for policies...\n")
                                         lookForPolicy(policies_list, auth_dict, client_address_auth[0])
                                     else:
-                                        print("[!] HMAC is different. R u a thief?")
+                                        print("[!] HMAC is different. R u a thief?\n")
                                         break
                             if not found:
-                                print("[!] User has not negotiated key yet")
+                                print("[!] User has not negotiated key yet\n")
                         else:
-                            print("[!] service MAC is not known; still waiting for a gratuitous ARP")
+                            print("[!] service MAC is not known; still waiting for a gratuitous ARP\n")
                     hmac_check(auth_string, auth_bytes, hmac_hex)
                     return
     threading.Thread(target = auth_thread).start()
@@ -498,14 +494,13 @@ def controller():
     packet_in = sh.PacketIn()
     threads = []
     while True:
-        print("[!] Waiting for receive something")
-
+        
         def handle_thread_pkt_management(packet, threads):
-            print("PACKET RECEIVED AT " + str(time.time()))
+            print("[!] Packet received\n")
             packet_handler = threading.Thread(target = packetHandler, args = (packet,))
             threads.append(packet_handler)
             packet_handler.start()
-            print("[!] packet_handler started")
+            print("[!] packet_handler started\n")
             for thread in threads:
                 thread.join()
 

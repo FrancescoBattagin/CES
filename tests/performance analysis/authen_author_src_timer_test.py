@@ -46,7 +46,7 @@ class MyEncoder(JSONEncoder):
         return obj.__dict__
 
 #111111111111111 -> imsi for testing purpose
-auth = Auth("192.169.56.2", "imsi", "111111111111111", 80, "TCP", "111111111111111", 1, 1.0)
+auth = Auth("192.169.56.2", "ip", "192.168.56.1", 80, "TCP", "111111111111111", 1, 1.0)
 #auth = Auth("192.169.56.2", "imsi", "111111111111111", 80, "TCP", "111111111111111", 1, 1.0)
 #auth = Auth("192.169.56.2", "token", "abcdefghilmnopqrstuvz", 80, "TCP", "111111111111111", 1, 1.0)
 auth = MyEncoder().encode(auth)
