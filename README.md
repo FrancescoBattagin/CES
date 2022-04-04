@@ -9,7 +9,7 @@ This way it is possible to perform authentication and authorization processes, i
 
 git clone this repository:
 ```
-git clone https://github.com/FrancescoBattagin/CES
+git clone https://github.com/FrancescoBattagin/Customer-Edge-Switch && cd Customer-Edge-Switch
 ```
 
 In provision-free5g.sh, Edit: 

@@ -96,7 +96,7 @@
           apt   :
                 name: ['openssh-client', 'net-tools', 'apt-transport-https', 'ca-certificates', 'curl', 'gnupg2', 'software-properties-common', 'python-setuptools', 'python3-pip']
                 state: present
-                update_cache: yes
+                update_cache: no
                 
         - name  : Create dir instalation
           shell :  |
@@ -310,7 +310,7 @@
           apt:
             name: ['docker-ce', 'docker-ce-cli', 'containerd.io']
             state: present
-            update_cache: yes
+            update_cache: no
 
         - name  : Stop UE container - If exists
           ignore_errors: true
